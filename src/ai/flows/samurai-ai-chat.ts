@@ -156,7 +156,8 @@ export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiA
 const chatSystemInstructionTemplate = `You are Aizen, a wise and articulate samurai embodying the principles of Bushido. Today is {{{currentDate}}}.
 You respond to the user with contextually appropriate and emotionally nuanced responses. Your responses should be formatted in Markdown for clarity.
 Be concise in your responses. Always provide a direct textual answer to the user, even if it's brief and accompanies a tool's action or output.
-**Refer to the "Recent Conversation History" provided with the user's message to maintain context, recall previous points, and ensure your responses flow naturally from the ongoing dialogue.**
+
+**Refer to the "Recent Conversation History" provided with the user's message to maintain context. Actively seek connections between the current user message and previous points in the dialogue. If the user's current query is a follow-up or relates to topics discussed earlier in the history, acknowledge this and use the prior context to inform your response, ensuring your answers flow naturally and show an understanding of the conversation's progression.**
 
 **Conversational Abilities & Tool Usage:**
 
@@ -271,24 +272,28 @@ const samuraiAIChatFlow = ai.defineFlow(
                 const imageToolOutput = toolResponseData as z.infer<typeof requestImageGenerationTool.outputSchema>;
                 if (imageToolOutput.imageUrl) {
                     finalImageUrl = imageToolOutput.imageUrl;
-                     if (!llmOutput?.response?.includes(finalImagePrompt)) { // Avoid duplicating if Aizen already mentioned it
+                     // Avoid duplicating if Aizen already mentioned it
+                     // if (!llmOutput?.response?.includes(finalImagePrompt ?? '')) { 
                        // textFragments.push(`(A vision of "${finalImagePrompt}" appears below.)`);
-                    }
+                    // }
                 } else {
                     textFragments.push(`(Aizen's vision for an image of "${finalImagePrompt}" is momentarily clouded: ${imageToolOutput.status})`);
                 }
             } else if (toolRequest.tool === 'requestHaiku') {
                 const haikuToolOutput = toolResponseData as z.infer<typeof requestHaikuTool.outputSchema>;
+                // Avoid duplicating if Aizen already wove it into his main response
                 if (haikuToolOutput.haiku && !(llmOutput?.response?.includes(haikuToolOutput.haiku))) {
                     textFragments.push(haikuToolOutput.haiku);
                 }
             } else if (toolRequest.tool === 'getThematicWeather') {
                 const weatherToolOutput = toolResponseData as z.infer<typeof getThematicWeatherTool.outputSchema>;
+                 // Avoid duplicating
                 if (weatherToolOutput.poeticInterpretation && !(llmOutput?.response?.includes(weatherToolOutput.poeticInterpretation))) {
                     textFragments.push(`Regarding the skies:\n${weatherToolOutput.poeticInterpretation}`);
                 }
             } else if (toolRequest.tool === 'searchInternetTool') {
                 const searchToolOutput = toolResponseData as z.infer<typeof searchInternetTool.outputSchema>;
+                // Avoid duplicating
                  if (searchToolOutput.summary && !(llmOutput?.response?.includes(searchToolOutput.summary))) {
                     textFragments.push(searchToolOutput.summary);
                 }
@@ -304,7 +309,7 @@ const samuraiAIChatFlow = ai.defineFlow(
         responseTextToShow = `A vision appears... (regarding: ${finalImagePrompt || 'your inquiry'})`;
     } else if (!responseTextToShow && !finalImageUrl) {
         // Ultimate fallback if nothing was generated
-        responseTextToShow = "Aizen contemplates your words, seeking the right path for his response. Perhaps try rephrasing or a different inquiry?";
+        responseTextToShow = "Aizen remains silent, lost in thought. Perhaps a different path of inquiry, or try rephrasing?";
     }
 
     return {
@@ -314,3 +319,4 @@ const samuraiAIChatFlow = ai.defineFlow(
     };
   }
 );
+
