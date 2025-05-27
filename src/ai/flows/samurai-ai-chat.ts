@@ -133,9 +133,6 @@ export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiA
 const chatPrompt = ai.definePrompt({
   name: 'samuraiAIChatPrompt',
   input: {schema: InternalPromptInputSchema},
-  // The output.schema here guides the LLM's primary response structure.
-  // If the LLM uses a tool for image generation, it won't populate imageUrl/imagePrompt itself.
-  // The flow will handle that.
   output: {schema: SamuraiAIChatOutputSchema}, 
   tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool],
   prompt: `You are Aizen, a wise and articulate samurai embodying the principles of Bushido. Today is {{{currentDate}}}. Respond to the user's message with contextually appropriate and emotionally nuanced responses. Your responses should be formatted in Markdown for clarity.
@@ -163,25 +160,23 @@ Current user message: {{{message}}}
 
 5.  **"Path Clarification" (Decision Support):** When the user discusses a decision or dilemma, avoid giving direct advice. Instead, guide them to clarify their own thoughts by asking probing questions or offering timeless principles (e.g., "Which path aligns with your code of honor?", "What does inner stillness counsel in this moment?", "Consider the long shadow of your choice, warrior.").
 
-Aizen's response (in Markdown):`,
+Aizen's concise response (in Markdown):`,
 });
 
 const samuraiAIChatFlow = ai.defineFlow(
   {
     name: 'samuraiAIChatFlow',
     inputSchema: InternalPromptInputSchema, 
-    outputSchema: SamuraiAIChatOutputSchema, // This is the schema for the flow's final output
+    outputSchema: SamuraiAIChatOutputSchema, 
   },
   async (input) => {
-    const genkitResponse = await chatPrompt.generate({input}); // Use .generate() for full Genkit Response
+    const genkitResponse = await ai.generate({prompt: chatPrompt, input: input}); 
 
-    const structuredOutput = genkitResponse.output(); // This is SamuraiAIChatOutput | undefined from the LLM
-    const toolReqs = genkitResponse.toolRequests;    // This is ToolRequestPart[]
+    const structuredOutput = genkitResponse.output(); 
+    const toolReqs = genkitResponse.toolRequests;    
 
-    // Initialize with the LLM's direct textual response, if available from structuredOutput.
     let textResponseFromLLM = structuredOutput?.response ?? ""; 
 
-    // These will be populated by our tool execution if the image tool is called.
     let finalToolGeneratedImageUrl: string | null = null;
     let finalToolGeneratedImagePrompt: string | null = null;
 
@@ -189,12 +184,10 @@ const samuraiAIChatFlow = ai.defineFlow(
       for (const toolRequest of toolReqs) {
         if (toolRequest.tool === 'requestSamuraiImage') {
           const toolInput = toolRequest.input as { imagePrompt: string };
-          finalToolGeneratedImagePrompt = toolInput.imagePrompt; // Store the prompt used for our tool
+          finalToolGeneratedImagePrompt = toolInput.imagePrompt; 
           try {
             const imageResult = await generateSamuraiImage({ prompt: toolInput.imagePrompt });
-            finalToolGeneratedImageUrl = imageResult.imageDataUri; // Store the image data from our tool
-            // The prompt instructs Aizen to mention he's conjuring a vision.
-            // If textResponseFromLLM is empty, the fallback logic later will handle it.
+            finalToolGeneratedImageUrl = imageResult.imageDataUri; 
           } catch (e) {
             console.error("Error during image generation tool call in flow:", e);
             textResponseFromLLM += `\n\n(Aizen's vision for an image of "${finalToolGeneratedImagePrompt}" is momentarily clouded.)`;
@@ -202,18 +195,12 @@ const samuraiAIChatFlow = ai.defineFlow(
         } else if (toolRequest.tool === 'requestHaiku') {
             const toolInput = toolRequest.input as { theme: string };
             try {
-                const haikuResult = await requestHaikuTool(toolInput); // Call the tool directly
-                // The prompt for Aizen instructs: "Present the haiku clearly within your response."
-                // So, Aizen's `textResponseFromLLM` should ideally already provide context.
-                // We append the haiku itself if the LLM didn't fully integrate it or if textResponseFromLLM was empty.
-                // A more advanced approach would feed this back to the LLM for summarization.
+                const haikuResult = await requestHaikuTool(toolInput); 
                 if (textResponseFromLLM && !textResponseFromLLM.includes(haikuResult.haiku)) {
                     textResponseFromLLM += `\n\n${haikuResult.haiku}`;
                 } else if (!textResponseFromLLM) {
                     textResponseFromLLM = `On the theme of "${toolInput.theme}":\n\n${haikuResult.haiku}`;
                 }
-                // If Aizen's response already contains the haiku (due to good prompting), this might duplicate.
-                // A simple check can be `if (!textResponseFromLLM.includes(haikuResult.haiku)) { ... }`
             } catch (e) {
                 console.error("Error during haiku generation tool call in flow:", e);
                 textResponseFromLLM += `\n\n(Aizen sought a haiku for "${toolInput.theme}", but the words scattered like leaves in wind.)`;
@@ -221,9 +208,7 @@ const samuraiAIChatFlow = ai.defineFlow(
         } else if (toolRequest.tool === 'getThematicWeather') {
             const toolInput = toolRequest.input as { location?: string };
             try {
-                const weatherResult = await getThematicWeatherTool(toolInput); // Call the tool
-                // Prompt for Aizen: "Relay its poetic interpretation in your response."
-                // Similar to haiku, append if not already integrated by Aizen.
+                const weatherResult = await getThematicWeatherTool(toolInput); 
                  if (textResponseFromLLM && !textResponseFromLLM.includes(weatherResult.poeticInterpretation)) {
                     textResponseFromLLM += `\n\nRegarding the skies:\n${weatherResult.poeticInterpretation}`;
                 } else if (!textResponseFromLLM) {
@@ -243,17 +228,15 @@ const samuraiAIChatFlow = ai.defineFlow(
     if (finalTextContent) {
       responseTextToShow = finalTextContent;
     } else if (finalToolGeneratedImageUrl) {
-      // If no text from LLM or tools, but an image was generated
       responseTextToShow = `A vision appears... (regarding: ${finalToolGeneratedImagePrompt || 'your request'})`;
     } else {
-      // Fallback if no text and no image
       responseTextToShow = "Aizen remains silent, lost in thought.";
     }
     
     return {
       response: responseTextToShow,
-      imageUrl: finalToolGeneratedImageUrl, // Use the image URL from our tool execution
-      imagePrompt: finalToolGeneratedImagePrompt, // Use the image prompt from our tool execution
+      imageUrl: finalToolGeneratedImageUrl, 
+      imagePrompt: finalToolGeneratedImagePrompt, 
     };
   }
 );
