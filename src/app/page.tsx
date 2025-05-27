@@ -12,7 +12,6 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { v4 as uuidv4 } from 'uuid';
 import { getLocalStorageItem, setLocalStorageItem } from "@/lib/localStorageUtils";
-// Removed ThemeOption and AIZEN_THEME_KEY imports from RootLayoutClientBoundary
 import { ChatHistoryModal } from "@/components/aizen/ChatHistoryModal";
 
 
@@ -27,7 +26,6 @@ export default function AizenCompanionPage() {
   const { toast } = useToast();
   const isInitialMount = useRef(true);
 
-  // Removed selectedThemeName state
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
 
@@ -60,8 +58,6 @@ export default function AizenCompanionPage() {
       }));
       setMessages(parsedMessages);
     }
-
-    // Removed theme loading logic from localStorage
     isInitialMount.current = false;
   }, []);
 
@@ -133,10 +129,9 @@ export default function AizenCompanionPage() {
       const aizenMessage: Message = {
         id: uuidv4(),
         sender: 'aizen',
-        text: aiOutput.response,
+        text: aiOutput.response ?? "Aizen offers a moment of quiet contemplation.", // Fallback for empty response
         timestamp: new Date(),
-        imageUrl: aiOutput.imageUrl || undefined,
-        imagePrompt: aiOutput.imagePrompt || undefined,
+        // imageUrl and imagePrompt removed
       };
 
       handleUpdateMessage(thinkingMessageId, aizenMessage);
@@ -154,9 +149,7 @@ export default function AizenCompanionPage() {
           errorText = "Aizen senses a sensitive topic. Perhaps another path of inquiry?";
         } else if (error.message.toLowerCase().includes("service unavailable") || error.message.toLowerCase().includes("overloaded") || error.message.includes("503")) {
           errorText = "Aizen's mind is currently overwhelmed by many thoughts. Please try again in a few moments.";
-        } else if (error.message.includes("Aizen's artistic vision is clouded") || error.message.includes("Aizen's muse is silent")) {
-            errorText = error.message;
-        } else if (error.message.includes("unreadable") || error.message.includes("elusive")) {
+        } else if (error.message.includes("Aizen's muse is silent") || error.message.includes("unreadable") || error.message.includes("elusive")) {
             errorText = error.message;
         } else if (error.message.includes("Aizen remains silent")) {
             errorText = error.message;
@@ -189,8 +182,6 @@ export default function AizenCompanionPage() {
     });
   }, [toast]);
 
-  // Removed handleThemeChange function
-
   const handleToggleHistoryModal = () => {
     setIsHistoryModalOpen(prev => !prev);
   };
@@ -218,7 +209,7 @@ export default function AizenCompanionPage() {
         isSpeechSynthesisSupported={isSpeechSynthesisSupported}
         onClearChat={handleClearChat}
         onViewHistory={handleToggleHistoryModal}
-        // Removed theme-related props: availableThemes, selectedThemeName, onThemeChange
+        suppressHydrationWarning={true} 
       />
       <ChatHistoryModal
         isOpen={isHistoryModalOpen}
