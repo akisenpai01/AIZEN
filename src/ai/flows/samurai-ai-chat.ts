@@ -34,8 +34,8 @@ const InternalPromptInputSchema = z.object({
 
 const SamuraiAIChatOutputSchema = z.object({
   response: z.string().describe('The Samurai AI text response.'),
-  imageUrl: z.string().optional().describe('URL of a generated image, if any.'),
-  imagePrompt: z.string().optional().describe('The prompt used for generating the image, if any.'),
+  imageUrl: z.string().nullable().optional().describe('URL of a generated image, if any, or null.'),
+  imagePrompt: z.string().nullable().optional().describe('The prompt used for generating the image, if any, or null.'),
 });
 export type SamuraiAIChatOutput = z.infer<typeof SamuraiAIChatOutputSchema>;
 
