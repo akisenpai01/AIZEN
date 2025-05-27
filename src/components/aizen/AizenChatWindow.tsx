@@ -6,6 +6,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Message } from "./AizenChatMessage";
 import { AizenChatMessage } from "./AizenChatMessage";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface AizenChatWindowProps {
   messages: Message[];
