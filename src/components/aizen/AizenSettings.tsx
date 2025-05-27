@@ -73,8 +73,8 @@ export function AizenSettings({
                       <SelectValue placeholder="Select a voice" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover/95 backdrop-blur-sm border-border/70">
-                      {voices.length > 0 ? voices.map((voice) => (
-                        <SelectItem key={voice.voiceURI} value={voice.voiceURI}>
+                      {voices.length > 0 ? voices.map((voice, index) => (
+                        <SelectItem key={`${voice.voiceURI}-${index}`} value={voice.voiceURI}>
                           {voice.name} ({voice.lang})
                         </SelectItem>
                       )) : <SelectItem value="no-voice" disabled>No voices available</SelectItem>}
