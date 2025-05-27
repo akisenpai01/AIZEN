@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Message } from "./AizenChatMessage";
 import { AizenChatMessage } from "./AizenChatMessage";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"; // Added AvatarImage, AvatarFallback
 import { Card, CardContent } from "@/components/ui/card";
 
 interface AizenChatWindowProps {
@@ -25,12 +25,15 @@ export function AizenChatWindow({ messages, isLoading }: AizenChatWindowProps) {
   }, [messages, isLoading]);
 
   return (
-    <ScrollArea className="flex-grow h-[calc(100vh-160px)] p-4 bg-background/30 backdrop-blur-sm rounded-t-lg" ref={scrollAreaRef}>
+    <ScrollArea 
+      className="flex-grow h-[calc(100vh-160px)] p-4 rounded-t-lg" // Removed bg-background/30 backdrop-blur-sm for transparency
+      ref={scrollAreaRef}
+    >
       <div ref={viewportRef} className="space-y-4">
         {messages.map((msg) => (
           <AizenChatMessage key={msg.id} message={msg} />
         ))}
-        {isLoading && (
+        {isLoading && messages[messages.length-1]?.sender === 'user' && ( // Show loading only if user was the last sender
           <div className="flex items-end gap-2 mb-4 justify-start">
             <Avatar className="w-10 h-10 self-start">
               <AvatarImage src="https://placehold.co/100x100/000000/FFFFFF.png?text=A" alt="Aizen" data-ai-hint="samurai mask"/>

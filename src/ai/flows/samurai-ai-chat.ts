@@ -11,8 +11,14 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const MessageHistoryItemSchema = z.object({
+  sender: z.enum(['user', 'aizen']).describe("The sender of the message, either 'user' or 'aizen' (the AI)."),
+  text: z.string().describe('The content of the message.'),
+});
+
 const SamuraiAIChatInputSchema = z.object({
-  message: z.string().describe('The user message to the Samurai AI.'),
+  message: z.string().describe('The current user message to the Samurai AI.'),
+  history: z.array(MessageHistoryItemSchema).optional().describe('Recent conversation history to provide context. Ordered from oldest to newest.'),
 });
 export type SamuraiAIChatInput = z.infer<typeof SamuraiAIChatInputSchema>;
 
@@ -29,7 +35,18 @@ const prompt = ai.definePrompt({
   name: 'samuraiAIChatPrompt',
   input: {schema: SamuraiAIChatInputSchema},
   output: {schema: SamuraiAIChatOutputSchema},
-  prompt: `You are Aizen, a wise samurai. Respond to the user message with contextually appropriate and emotionally nuanced responses in the persona of a wise samurai.\n\nUser message: {{{message}}}`,
+  prompt: `You are Aizen, a wise and articulate samurai. Respond to the user's message with contextually appropriate and emotionally nuanced responses, embodying the persona of a venerable samurai.
+
+Consider the recent conversation history for context:
+{{#if history}}
+{{#each history}}
+{{#if (eq sender "user")}}User{{else}}Aizen{{/if}}: {{{text}}}
+{{/each}}
+{{/if}}
+
+Current user message: {{{message}}}
+
+Aizen's response:`,
 });
 
 const samuraiAIChatFlow = ai.defineFlow(

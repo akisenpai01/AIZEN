@@ -3,7 +3,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send } from "lucide-react";
+import { Send, Trash2, ScrollText } from "lucide-react";
 import { PulsatingMicIcon } from "./PulsatingMicIcon";
 import type { FormEvent } from "react";
 import type { CustomSpeechSynthesisVoice } from "@/hooks/useSpeechSynthesis";
@@ -26,6 +26,9 @@ interface AizenChatInputProps {
   ttsEnabled: boolean;
   onTtsToggle: (enabled: boolean) => void;
   isSpeechSynthesisSupported: boolean;
+  // New props
+  onClearChat: () => void;
+  onGetWisdom: () => void;
 }
 
 export function AizenChatInput({
@@ -43,7 +46,9 @@ export function AizenChatInput({
   onVoiceChange,
   ttsEnabled,
   onTtsToggle,
-  isSpeechSynthesisSupported
+  isSpeechSynthesisSupported,
+  onClearChat,
+  onGetWisdom,
 }: AizenChatInputProps) {
   
   const handleSubmit = (e: FormEvent) => {
@@ -68,6 +73,19 @@ export function AizenChatInput({
         className="flex items-center gap-2"
         suppressHydrationWarning={true} 
       >
+        <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onGetWisdom}
+            disabled={isLoading}
+            className="text-accent hover:bg-accent/20 hover:text-accent"
+            aria-label="Get Wisdom from Aizen"
+            suppressHydrationWarning={true}
+            title="Get Wisdom"
+          >
+            <ScrollText className="h-5 w-5" />
+        </Button>
         <Input
           type="text"
           placeholder={isRecording ? "Listening..." : "Speak or type your thoughts..."}
@@ -101,6 +119,19 @@ export function AizenChatInput({
           suppressHydrationWarning={true}
         >
           <Send className="h-5 w-5" />
+        </Button>
+        <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onClearChat}
+            disabled={isLoading}
+            className="text-accent hover:bg-accent/20 hover:text-accent"
+            aria-label="Clear Chat"
+            suppressHydrationWarning={true}
+            title="Clear Chat"
+          >
+            <Trash2 className="h-5 w-5" />
         </Button>
         <AizenSettings
           voices={voices}
