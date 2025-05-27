@@ -15,8 +15,7 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { v4 as uuidv4 } from 'uuid';
 import { getLocalStorageItem, setLocalStorageItem } from "@/lib/localStorageUtils";
-import type { Theme } from '@/app/RootLayoutClientBoundary'; // Import Theme type from RootLayoutClientBoundary
-import { availableThemes, AIZEN_THEME_KEY } from '@/app/RootLayoutClientBoundary'; // Import availableThemes from RootLayoutClientBoundary
+import { availableThemes, AIZEN_THEME_KEY, type Theme } from '@/app/RootLayoutClientBoundary';
 
 
 const AIZEN_CHAT_HISTORY_KEY = 'aizen_chat_history';
@@ -64,11 +63,11 @@ export default function AizenCompanionPage() {
       setMessages(parsedMessages);
     }
 
-    const storedThemeName = getLocalStorageItem<string | null>(AIZEN_THEME_KEY, null); // Don't set default here, RootLayoutClientBoundary handles it
+    const storedThemeName = getLocalStorageItem<string | null>(AIZEN_THEME_KEY, null);
     if (storedThemeName && availableThemes.some(t => t.name === storedThemeName)) {
       setSelectedThemeName(storedThemeName);
     } else {
-      setSelectedThemeName(availableThemes[0].name); // Fallback if not found or invalid
+      setSelectedThemeName(availableThemes[0].name); 
     }
     
     isInitialMount.current = false;
@@ -162,7 +161,7 @@ export default function AizenCompanionPage() {
       handleUpdateMessage(thinkingMessageId, aizenMessage);
 
 
-      if (ttsEnabled && isSpeechSynthesisSupported) {
+      if (ttsEnabled && isSpeechSynthesisSupported && aiOutput.response) {
         speak(aiOutput.response);
       }
 
@@ -214,15 +213,24 @@ export default function AizenCompanionPage() {
     // The RootLayoutClientBoundary will pick up the change from localStorage via its own useEffect or event listener.
     // For immediate visual feedback without waiting for RootLayoutClientBoundary's sync:
     if (typeof window !== 'undefined') {
-        const bgEvent = new CustomEvent('aizenThemeChange', { detail: { themeName: newSelectedTheme.name } });
-        window.dispatchEvent(bgEvent);
+        // Dispatch a custom event that RootLayoutClientBoundary can listen for
+        const event = new StorageEvent('storage', {
+          key: AIZEN_THEME_KEY,
+          newValue: newSelectedTheme.name,
+          oldValue: getLocalStorageItem<string | null>(AIZEN_THEME_KEY, null), // Send current value as old
+          storageArea: localStorage,
+        });
+        window.dispatchEvent(event);
     }
   };
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden">
       <div className="p-2 border-b border-border/30 bg-background/30 backdrop-blur-sm">
-        <div className="relative flex items-center">
+        <div 
+          className="relative flex items-center"
+          suppressHydrationWarning={true} 
+        >
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
