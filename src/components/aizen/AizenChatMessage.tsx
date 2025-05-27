@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import ReactMarkdown from 'react-markdown';
-import { Copy, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Copy } from 'lucide-react'; // Removed ThumbsUp, ThumbsDown
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+// Removed useState as feedbackState is gone
 
 export type Message = {
   id: string;
@@ -19,19 +19,18 @@ export type Message = {
   isLoadingPlaceholder?: boolean;
   imageUrl?: string; // For generated images
   imagePrompt?: string; // Optional: prompt used for the image
-  feedback?: 'liked' | 'disliked' | null; // For user feedback
+  // feedback?: 'liked' | 'disliked' | null; // Removed feedback property
 };
 
 interface AizenChatMessageProps {
   message: Message;
-  onUpdateMessage?: (messageId: string, updates: Partial<Message>) => void; // For feedback
+  onUpdateMessage?: (messageId: string, updates: Partial<Message>) => void; // Kept for other potential updates
 }
 
 export function AizenChatMessage({ message, onUpdateMessage }: AizenChatMessageProps) {
   const isAizen = message.sender === 'aizen';
   const { toast } = useToast();
-  const [feedbackState, setFeedbackState] = useState(message.feedback);
-
+  // const [feedbackState, setFeedbackState] = useState(message.feedback); // Removed feedbackState
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.text)
@@ -44,15 +43,15 @@ export function AizenChatMessage({ message, onUpdateMessage }: AizenChatMessageP
       });
   };
 
-  const handleFeedback = (newFeedback: 'liked' | 'disliked') => {
-    const updatedFeedback = feedbackState === newFeedback ? null : newFeedback;
-    setFeedbackState(updatedFeedback);
-    if (onUpdateMessage) {
-      onUpdateMessage(message.id, { feedback: updatedFeedback });
-    }
-    // In a real app, you might send this feedback to a server
-    console.log(`Feedback for message ${message.id}: ${updatedFeedback}`);
-  };
+  // Removed handleFeedback function
+  // const handleFeedback = (newFeedback: 'liked' | 'disliked') => {
+  //   const updatedFeedback = feedbackState === newFeedback ? null : newFeedback;
+  //   setFeedbackState(updatedFeedback);
+  //   if (onUpdateMessage) {
+  //     onUpdateMessage(message.id, { feedback: updatedFeedback });
+  //   }
+  //   console.log(`Feedback for message ${message.id}: ${updatedFeedback}`);
+  // };
 
 
   if (message.isLoadingPlaceholder && isAizen) {
@@ -86,7 +85,7 @@ export function AizenChatMessage({ message, onUpdateMessage }: AizenChatMessageP
       )}
       <Card 
         className={cn(
-          "max-w-[70%] p-0 shadow-lg group relative", // Added group relative for buttons
+          "max-w-[70%] p-0 shadow-lg group relative", 
           isAizen ? "bg-secondary/80 rounded-tr-xl rounded-bl-xl rounded-br-xl" : "bg-primary/80 text-primary-foreground rounded-tl-xl rounded-br-xl rounded-bl-xl",
           "border-border/50"
         )}
@@ -96,7 +95,6 @@ export function AizenChatMessage({ message, onUpdateMessage }: AizenChatMessageP
             <ReactMarkdown
               className="prose prose-sm prose-invert max-w-none break-words"
               components={{
-                // Customize Markdown rendering if needed
                 p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
                 ul: ({node, ...props}) => <ul className="list-disc list-inside mb-2" {...props} />,
                 ol: ({node, ...props}) => <ol className="list-decimal list-inside mb-2" {...props} />,
@@ -134,24 +132,7 @@ export function AizenChatMessage({ message, onUpdateMessage }: AizenChatMessageP
             <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={handleCopy} title="Copy message">
               <Copy size={14} />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className={cn("h-6 w-6 hover:text-green-500", feedbackState === 'liked' ? "text-green-500" : "text-muted-foreground")} 
-              onClick={() => handleFeedback('liked')}
-              title="Like response"
-            >
-              <ThumbsUp size={14} />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className={cn("h-6 w-6 hover:text-red-500", feedbackState === 'disliked' ? "text-red-500" : "text-muted-foreground")} 
-              onClick={() => handleFeedback('disliked')}
-              title="Dislike response"
-            >
-              <ThumbsDown size={14} />
-            </Button>
+            {/* Removed ThumbsUp and ThumbsDown buttons */}
           </div>
         )}
       </Card>
