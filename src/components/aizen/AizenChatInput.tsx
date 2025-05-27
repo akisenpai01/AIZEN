@@ -4,13 +4,12 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send } from "lucide-react"; // Removed Trash2
+import { Send } from "lucide-react";
 import { PulsatingMicIcon } from "./PulsatingMicIcon";
 import type { FormEvent } from "react";
 import type { CustomSpeechSynthesisVoice } from "@/hooks/useSpeechSynthesis";
 import { AizenSettings } from "./AizenSettings";
-import type { ThemeOption } from '@/app/RootLayoutClientBoundary'; // Using ThemeOption type
-
+// Removed ThemeOption import as it's no longer used here
 
 interface AizenChatInputProps {
   inputValue: string;
@@ -31,11 +30,11 @@ interface AizenChatInputProps {
   isSpeechSynthesisSupported: boolean;
   // Chat Actions
   onClearChat: () => void;
-  onViewHistory: () => void; // New prop for viewing history
-  // Theme props
-  availableThemes: ThemeOption[]; // Changed to ThemeOption
-  selectedThemeName: string;
-  onThemeChange: (themeName: string) => void;
+  onViewHistory: () => void;
+  // Theme props removed
+  // availableThemes: ThemeOption[];
+  // selectedThemeName: string;
+  // onThemeChange: (themeName: string) => void;
 }
 
 export function AizenChatInput({
@@ -55,10 +54,10 @@ export function AizenChatInput({
   onTtsToggle,
   isSpeechSynthesisSupported,
   onClearChat,
-  onViewHistory, // New prop
-  availableThemes,
-  selectedThemeName,
-  onThemeChange,
+  onViewHistory,
+  // availableThemes, // Removed
+  // selectedThemeName, // Removed
+  // onThemeChange, // Removed
 }: AizenChatInputProps) {
 
   const handleSubmit = (e: FormEvent) => {
@@ -117,7 +116,6 @@ export function AizenChatInput({
         >
           <Send className="h-5 w-5" />
         </Button>
-        {/* Clear Chat button removed from here */}
         <AizenSettings
           voices={voices}
           selectedVoiceURI={selectedVoiceURI}
@@ -125,11 +123,9 @@ export function AizenChatInput({
           ttsEnabled={ttsEnabled}
           onTtsToggle={onTtsToggle}
           isSpeechSynthesisSupported={isSpeechSynthesisSupported}
-          onClearChat={onClearChat} // Pass prop
-          onViewHistory={onViewHistory} // Pass prop
-          availableThemes={availableThemes}
-          selectedThemeName={selectedThemeName}
-          onThemeChange={onThemeChange}
+          onClearChat={onClearChat}
+          onViewHistory={onViewHistory}
+          // Removed theme-related props: availableThemes, selectedThemeName, onThemeChange
         />
       </form>
       {speechRecognitionError && <p className="text-xs text-destructive mt-1">{speechRecognitionError}</p>}

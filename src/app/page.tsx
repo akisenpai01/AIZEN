@@ -12,7 +12,7 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { v4 as uuidv4 } from 'uuid';
 import { getLocalStorageItem, setLocalStorageItem } from "@/lib/localStorageUtils";
-import { availableThemes, AIZEN_THEME_KEY } from '@/app/RootLayoutClientBoundary'; // Removed Theme type as it's defined in RootLayoutClientBoundary
+// Removed ThemeOption and AIZEN_THEME_KEY imports from RootLayoutClientBoundary
 import { ChatHistoryModal } from "@/components/aizen/ChatHistoryModal";
 
 
@@ -27,7 +27,7 @@ export default function AizenCompanionPage() {
   const { toast } = useToast();
   const isInitialMount = useRef(true);
 
-  const [selectedThemeName, setSelectedThemeName] = useState<string>(availableThemes[0].name);
+  // Removed selectedThemeName state
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
 
@@ -61,13 +61,7 @@ export default function AizenCompanionPage() {
       setMessages(parsedMessages);
     }
 
-    const storedThemeName = getLocalStorageItem<string | null>(AIZEN_THEME_KEY, null);
-    if (storedThemeName && availableThemes.some(t => t.name === storedThemeName)) {
-      setSelectedThemeName(storedThemeName);
-    } else {
-      setSelectedThemeName(availableThemes[0].name);
-    }
-
+    // Removed theme loading logic from localStorage
     isInitialMount.current = false;
   }, []);
 
@@ -164,6 +158,8 @@ export default function AizenCompanionPage() {
             errorText = error.message;
         } else if (error.message.includes("unreadable") || error.message.includes("elusive")) {
             errorText = error.message;
+        } else if (error.message.includes("Aizen remains silent")) {
+            errorText = error.message;
         }
       }
 
@@ -193,21 +189,7 @@ export default function AizenCompanionPage() {
     });
   }, [toast]);
 
-  const handleThemeChange = (themeName: string) => {
-    const newSelectedTheme = availableThemes.find(t => t.name === themeName) || availableThemes[0];
-    setSelectedThemeName(newSelectedTheme.name);
-    setLocalStorageItem(AIZEN_THEME_KEY, newSelectedTheme.name);
-
-    if (typeof window !== 'undefined') {
-        const event = new StorageEvent('storage', {
-          key: AIZEN_THEME_KEY,
-          newValue: newSelectedTheme.name,
-          oldValue: getLocalStorageItem<string | null>(AIZEN_THEME_KEY, null),
-          storageArea: localStorage,
-        });
-        window.dispatchEvent(event);
-    }
-  };
+  // Removed handleThemeChange function
 
   const handleToggleHistoryModal = () => {
     setIsHistoryModalOpen(prev => !prev);
@@ -215,7 +197,6 @@ export default function AizenCompanionPage() {
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden">
-      {/* Search bar removed from here */}
       <div className="flex-grow flex flex-col overflow-hidden pt-2">
         <AizenChatWindow messages={messages} isLoading={isLoading} onUpdateMessage={handleUpdateMessage} />
       </div>
@@ -236,10 +217,8 @@ export default function AizenCompanionPage() {
         onTtsToggle={setTtsEnabled}
         isSpeechSynthesisSupported={isSpeechSynthesisSupported}
         onClearChat={handleClearChat}
-        onViewHistory={handleToggleHistoryModal} // New prop
-        availableThemes={availableThemes}
-        selectedThemeName={selectedThemeName}
-        onThemeChange={handleThemeChange}
+        onViewHistory={handleToggleHistoryModal}
+        // Removed theme-related props: availableThemes, selectedThemeName, onThemeChange
       />
       <ChatHistoryModal
         isOpen={isHistoryModalOpen}

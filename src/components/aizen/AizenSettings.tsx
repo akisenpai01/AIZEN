@@ -8,8 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { CustomSpeechSynthesisVoice } from "@/hooks/useSpeechSynthesis";
-import { Settings, Volume2, VolumeX, Palette, Trash2, BookOpen } from "lucide-react"; // Added Trash2, BookOpen
-import type { ThemeOption } from '@/app/RootLayoutClientBoundary'; // Using ThemeOption type
+import { Settings, Volume2, VolumeX, Trash2, BookOpen } from "lucide-react"; // Removed Palette
+// Removed ThemeOption import
 import { Separator } from "@/components/ui/separator";
 
 interface AizenSettingsProps {
@@ -19,10 +19,10 @@ interface AizenSettingsProps {
   ttsEnabled: boolean;
   onTtsToggle: (enabled: boolean) => void;
   isSpeechSynthesisSupported: boolean;
-  // Theme props
-  availableThemes: ThemeOption[];
-  selectedThemeName: string;
-  onThemeChange: (themeName: string) => void;
+  // Theme props removed
+  // availableThemes: ThemeOption[];
+  // selectedThemeName: string;
+  // onThemeChange: (themeName: string) => void;
   // Chat Actions
   onClearChat: () => void;
   onViewHistory: () => void;
@@ -35,9 +35,9 @@ export function AizenSettings({
   ttsEnabled,
   onTtsToggle,
   isSpeechSynthesisSupported,
-  availableThemes,
-  selectedThemeName,
-  onThemeChange,
+  // availableThemes, // Removed
+  // selectedThemeName, // Removed
+  // onThemeChange, // Removed
   onClearChat,
   onViewHistory,
 }: AizenSettingsProps) {
@@ -57,8 +57,8 @@ export function AizenSettings({
       <PopoverContent className="w-80 bg-popover/90 backdrop-blur-md border-border/50 text-popover-foreground">
         <div className="grid gap-6">
 
-          {/* Interface Settings */}
-          <div className="space-y-2">
+          {/* Interface Settings Section Removed */}
+          {/* <div className="space-y-2">
             <h4 className="font-medium leading-none">Interface</h4>
             <p className="text-sm text-muted-foreground">
               Customize appearance.
@@ -88,7 +88,7 @@ export function AizenSettings({
             </Select>
           </div>
 
-          <Separator />
+          <Separator /> */}
 
           {/* Voice Settings */}
           <div className="space-y-2">
