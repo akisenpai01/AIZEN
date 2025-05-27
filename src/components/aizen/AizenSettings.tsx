@@ -29,7 +29,12 @@ export function AizenSettings({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="text-accent hover:bg-accent/20 hover:text-accent">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="text-accent hover:bg-accent/20 hover:text-accent"
+          suppressHydrationWarning={true}
+        >
           <Settings className="h-5 w-5" />
           <span className="sr-only">Open Settings</span>
         </Button>

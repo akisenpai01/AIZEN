@@ -66,7 +66,7 @@ export function AizenChatInput({
       <form 
         onSubmit={handleSubmit} 
         className="flex items-center gap-2"
-        suppressHydrationWarning={true}
+        suppressHydrationWarning={true} 
       >
         <Input
           type="text"
@@ -75,6 +75,7 @@ export function AizenChatInput({
           onChange={(e) => onInputChange(e.target.value)}
           className="flex-grow bg-input/70 border-border/50 focus:ring-accent/50 placeholder:text-muted-foreground/70"
           disabled={isLoading || isRecording}
+          suppressHydrationWarning={true}
         />
         {isSpeechRecognitionSupported && (
           <Button
@@ -85,6 +86,7 @@ export function AizenChatInput({
             disabled={isLoading}
             className="text-accent hover:bg-accent/20 hover:text-accent"
             aria-label={isRecording ? "Stop recording" : "Start recording"}
+            suppressHydrationWarning={true}
           >
             <PulsatingMicIcon isListening={isRecording} className="h-5 w-5" />
           </Button>
@@ -96,6 +98,7 @@ export function AizenChatInput({
           disabled={isLoading || !inputValue.trim()}
           className="text-accent hover:bg-accent/20 hover:text-accent"
           aria-label="Send message"
+          suppressHydrationWarning={true}
         >
           <Send className="h-5 w-5" />
         </Button>
