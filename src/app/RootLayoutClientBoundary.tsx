@@ -6,11 +6,17 @@ import { getLocalStorageItem } from '@/lib/localStorageUtils';
 
 // Define available themes - ensure this is consistent with other uses (e.g., AizenSettings)
 // Consider moving to a shared constants file if used in multiple places
-export const availableThemes = [
+export interface ThemeOption { // Exporting the type
+  name: string;
+  bgImage: string;
+  dataAiHint: string;
+}
+
+export const availableThemes: ThemeOption[] = [
   { name: 'Default', bgImage: "https://media-hosting.imagekit.io/7e8c99534f4d4798/wp9226062-4k-samurai-mobile-wallpapers.jpg?Expires=1840948638&Key-Pair-Id=K2ZIVPTIP2VGHC&Signature=r62I1Q4W4YHDy7eiAKqwWodbPFzVNXXwioylagBQi16o1rzM9Y6dcqUPdEi3RT-sYxwAiJdHM74NsQs-Uvb4lM7lUKxM9ZzFbZOMaz9rrmV04KHyqrugDwVIQTOC7C95kY90o42Gd1lmMUznk-27FKLdFA1w82wzZFl0NbXnLu6~E2IIDbm391RQqbef8~TLw2rIRWM6BG0Efgjh4T34zIsevcrRGcsj~LoNgNPR12Kuk6VotvanRGnuSwBoMXj7mAnxLPwAafsbgi~rUxv-mWElzAlUD90cerywZme6rtLYp5g9nQB7e-YWpa3poyalPdIrIB9A-0YyoP8pyWKyow__", dataAiHint: 'samurai landscape' },
-  { name: 'Serene Garden', bgImage: 'https://placehold.co/1920x1080/A9A9A9/FFFFFF.png?text=Serene+Garden', dataAiHint: 'zen garden' },
-  { name: 'Dojo Training', bgImage: 'https://placehold.co/1920x1080/2F4F4F/FFFFFF.png?text=Dojo+Training', dataAiHint: 'dojo interior' },
-  { name: 'Moonlit Night', bgImage: 'https://placehold.co/1920x1080/483D8B/FFFFFF.png?text=Moonlit+Night', dataAiHint: 'moon night' },
+  { name: 'Serene Garden', bgImage: 'https://placehold.co/1920x1080/A9D1A9/333333.png', dataAiHint: 'zen garden' },
+  { name: 'Dojo Training', bgImage: 'https://placehold.co/1920x1080/D2B48C/333333.png', dataAiHint: 'dojo interior' },
+  { name: 'Moonlit Night', bgImage: 'https://placehold.co/1920x1080/2C3E50/FFFFFF.png', dataAiHint: 'moon night' },
 ];
 export const AIZEN_THEME_KEY = 'aizen_theme_name';
 
@@ -63,3 +69,4 @@ export function RootLayoutClientBoundary({
     </>
   );
 }
+

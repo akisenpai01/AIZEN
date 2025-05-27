@@ -4,12 +4,12 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Trash2 } from "lucide-react";
+import { Send } from "lucide-react"; // Removed Trash2
 import { PulsatingMicIcon } from "./PulsatingMicIcon";
 import type { FormEvent } from "react";
 import type { CustomSpeechSynthesisVoice } from "@/hooks/useSpeechSynthesis";
 import { AizenSettings } from "./AizenSettings";
-import type { Theme } from '@/app/page'; // Assuming Theme type is exported from page.tsx or a types file
+import type { ThemeOption } from '@/app/RootLayoutClientBoundary'; // Using ThemeOption type
 
 
 interface AizenChatInputProps {
@@ -29,10 +29,11 @@ interface AizenChatInputProps {
   ttsEnabled: boolean;
   onTtsToggle: (enabled: boolean) => void;
   isSpeechSynthesisSupported: boolean;
-  // Chat Clear
+  // Chat Actions
   onClearChat: () => void;
+  onViewHistory: () => void; // New prop for viewing history
   // Theme props
-  availableThemes: Theme[];
+  availableThemes: ThemeOption[]; // Changed to ThemeOption
   selectedThemeName: string;
   onThemeChange: (themeName: string) => void;
 }
@@ -54,11 +55,12 @@ export function AizenChatInput({
   onTtsToggle,
   isSpeechSynthesisSupported,
   onClearChat,
+  onViewHistory, // New prop
   availableThemes,
   selectedThemeName,
   onThemeChange,
 }: AizenChatInputProps) {
-  
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (inputValue.trim() && !isLoading) {
@@ -76,10 +78,10 @@ export function AizenChatInput({
 
   return (
     <div className="p-4 bg-background/50 backdrop-blur-sm border-t border-border/30 shadow-md">
-      <form 
-        onSubmit={handleSubmit} 
+      <form
+        onSubmit={handleSubmit}
         className="flex items-center gap-2"
-        suppressHydrationWarning={true} 
+        suppressHydrationWarning={true}
       >
         <Input
           type="text"
@@ -104,10 +106,10 @@ export function AizenChatInput({
             <PulsatingMicIcon isListening={isRecording} className="h-5 w-5" />
           </Button>
         )}
-        <Button 
-          type="submit" 
-          size="icon" 
-          variant="ghost" 
+        <Button
+          type="submit"
+          size="icon"
+          variant="ghost"
           disabled={isLoading || !inputValue.trim()}
           className="text-accent hover:bg-accent/20 hover:text-accent"
           aria-label="Send message"
@@ -115,19 +117,7 @@ export function AizenChatInput({
         >
           <Send className="h-5 w-5" />
         </Button>
-        <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={onClearChat}
-            disabled={isLoading}
-            className="text-accent hover:bg-accent/20 hover:text-accent"
-            aria-label="Clear Chat"
-            suppressHydrationWarning={true}
-            title="Clear Chat"
-          >
-            <Trash2 className="h-5 w-5" />
-        </Button>
+        {/* Clear Chat button removed from here */}
         <AizenSettings
           voices={voices}
           selectedVoiceURI={selectedVoiceURI}
@@ -135,6 +125,8 @@ export function AizenChatInput({
           ttsEnabled={ttsEnabled}
           onTtsToggle={onTtsToggle}
           isSpeechSynthesisSupported={isSpeechSynthesisSupported}
+          onClearChat={onClearChat} // Pass prop
+          onViewHistory={onViewHistory} // Pass prop
           availableThemes={availableThemes}
           selectedThemeName={selectedThemeName}
           onThemeChange={onThemeChange}
