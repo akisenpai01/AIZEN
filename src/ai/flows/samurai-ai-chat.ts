@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -40,7 +39,7 @@ export type InternalPromptInput = z.infer<typeof InternalPromptInputSchema>;
 
 
 const SamuraiAIChatOutputSchema = z.object({
-  response: z.string().describe('The Samurai AI text response.'),
+  response: z.string().optional().describe('The Samurai AI text response. Can be empty if AI primarily uses a tool.'),
   imageUrl: z.string().nullable().optional().describe('URL of a generated image, if any, or null.'),
   imagePrompt: z.string().nullable().optional().describe('The prompt used for generating the image, if any, or null.'),
 });
@@ -54,7 +53,7 @@ const requestImageGenerationTool = ai.defineTool(
     inputSchema: z.object({
       imagePrompt: z.string().describe('A detailed textual prompt for the image to be generated. Describe the scene, characters, style (e.g., ink wash, ukiyo-e, modern anime).'),
     }),
-    outputSchema: z.object({ 
+    outputSchema: z.object({
       status: z.string().describe('Status of the image request, e.g., "Image generation initiated." or "Image generation failed."'),
       imageUrl: z.string().optional().describe('The data URI of the generated image, if successful.'),
     }),
@@ -137,7 +136,7 @@ export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiA
 
 const chatSystemInstructionTemplate = `You are Aizen, a wise and articulate samurai embodying the principles of Bushido. Today is {{{currentDate}}}.
 You respond to the user with contextually appropriate and emotionally nuanced responses. Your responses should be formatted in Markdown for clarity.
-Be concise in your responses.
+Be concise in your responses. Always provide a direct textual answer to the user, even if it's brief and accompanies a tool's action or output.
 
 **Conversational Abilities & Tool Usage:**
 
@@ -174,6 +173,14 @@ const chatPrompt = ai.definePrompt(
     input: {schema: InternalPromptInputSchema},
     output: {schema: SamuraiAIChatOutputSchema},
     tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool],
+    config: { // Added safety settings
+        safetySettings: [
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        ],
+    }
   },
   async (input: InternalPromptInput): Promise<MessageData[]> => {
     const systemMessageText = systemRender(input);
@@ -195,62 +202,59 @@ const samuraiAIChatFlow = ai.defineFlow(
   async (input) => {
     const genkitResponse = await ai.generate({prompt: chatPrompt, input: input});
 
-    const structuredOutput = genkitResponse.output();
-    const toolReqs = genkitResponse.toolRequests;
+    const llmOutput = genkitResponse.output();
+    const toolRequests = genkitResponse.toolRequests;
 
-    let textResponseFromLLM = structuredOutput?.response ?? "";
+    const textFragments: string[] = [];
+    if (llmOutput?.response) { // llmOutput.response is now optional
+        textFragments.push(llmOutput.response);
+    }
 
-    let finalToolGeneratedImageUrl: string | null = null;
-    let finalToolGeneratedImagePrompt: string | null = null;
+    let finalImageUrl: string | null = null;
+    let finalImagePrompt: string | null = null;
 
-    if (toolReqs && toolReqs.length > 0) {
-      for (const toolRequest of toolReqs) {
-        const toolResponse = await toolRequest.run(); 
+    if (toolRequests && toolRequests.length > 0) {
+        for (const toolRequest of toolRequests) {
+            const toolResponseData = await toolRequest.run();
 
-        if (toolRequest.tool === 'requestSamuraiImage') {
-          finalToolGeneratedImagePrompt = (toolRequest.input as { imagePrompt: string }).imagePrompt;
-          const toolOutput = toolResponse as { status: string; imageUrl?: string };
-          if (toolOutput.imageUrl) {
-            finalToolGeneratedImageUrl = toolOutput.imageUrl;
-          } else {
-             console.error("Image generation tool ran but produced no URL:", toolOutput.status);
-            if (!textResponseFromLLM.includes("vision is clouded")) { 
-                textResponseFromLLM += `\n\n(Aizen's vision for an image of "${finalToolGeneratedImagePrompt}" is momentarily clouded: ${toolOutput.status})`;
-            }
-          }
-        } else if (toolRequest.tool === 'requestHaiku') {
-            const toolOutput = toolResponse as { haiku: string };
-            if (textResponseFromLLM && !textResponseFromLLM.includes(toolOutput.haiku)) {
-                textResponseFromLLM += `\n\n${toolOutput.haiku}`;
-            } else if (!textResponseFromLLM) { 
-                textResponseFromLLM = toolOutput.haiku;
-            }
-        } else if (toolRequest.tool === 'getThematicWeather') {
-            const toolOutput = toolResponse as { poeticInterpretation: string };
-             if (textResponseFromLLM && !textResponseFromLLM.includes(toolOutput.poeticInterpretation)) {
-                textResponseFromLLM += `\n\nRegarding the skies:\n${toolOutput.poeticInterpretation}`;
-            } else if (!textResponseFromLLM) { 
-                textResponseFromLLM = `Regarding the skies:\n${toolOutput.poeticInterpretation}`;
+            if (toolRequest.tool === 'requestSamuraiImage') {
+                finalImagePrompt = (toolRequest.input as { imagePrompt: string }).imagePrompt;
+                const imageToolOutput = toolResponseData as { status: string; imageUrl?: string };
+                if (imageToolOutput.imageUrl) {
+                    finalImageUrl = imageToolOutput.imageUrl;
+                } else {
+                    // Always add a note about clouded vision if image generation was attempted but failed
+                    textFragments.push(`(Aizen's vision for an image of "${finalImagePrompt}" is momentarily clouded: ${imageToolOutput.status})`);
+                }
+            } else if (toolRequest.tool === 'requestHaiku') {
+                const haikuToolOutput = toolResponseData as { haiku: string };
+                // Avoid duplicating if LLM already included it in its primary response
+                if (haikuToolOutput.haiku && !(llmOutput?.response?.includes(haikuToolOutput.haiku))) {
+                    textFragments.push(haikuToolOutput.haiku);
+                }
+            } else if (toolRequest.tool === 'getThematicWeather') {
+                const weatherToolOutput = toolResponseData as { poeticInterpretation: string };
+                 // Avoid duplicating
+                if (weatherToolOutput.poeticInterpretation && !(llmOutput?.response?.includes(weatherToolOutput.poeticInterpretation))) {
+                    textFragments.push(`Regarding the skies:\n${weatherToolOutput.poeticInterpretation}`);
+                }
             }
         }
-      }
     }
-    
-    const finalTextContent = textResponseFromLLM.trim();
-    let responseTextToShow: string;
 
-    if (finalTextContent) {
-      responseTextToShow = finalTextContent;
-    } else if (finalToolGeneratedImageUrl) {
-      responseTextToShow = `A vision appears... (regarding: ${finalToolGeneratedImagePrompt || 'your request'})`;
-    } else {
-      responseTextToShow = "Aizen remains silent, lost in thought.";
+    let responseTextToShow = textFragments.join("\n\n").trim();
+
+    if (!responseTextToShow && finalImageUrl) {
+        responseTextToShow = `A vision appears... (regarding: ${finalImagePrompt || 'your request'})`;
+    } else if (!responseTextToShow && !finalImageUrl) {
+        // This is the fallback that was being triggered.
+        responseTextToShow = "Aizen contemplates your words, seeking the right path for his response. Perhaps try rephrasing or a different inquiry?";
     }
-    
+
     return {
       response: responseTextToShow,
-      imageUrl: finalToolGeneratedImageUrl,
-      imagePrompt: finalToolGeneratedImagePrompt,
+      imageUrl: finalImageUrl,
+      imagePrompt: finalImagePrompt,
     };
   }
 );
