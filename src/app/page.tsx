@@ -1,3 +1,4 @@
+
 // src/app/page.tsx
 "use client";
 
@@ -6,7 +7,7 @@ import { samuraiAIChat, type SamuraiAIChatInput, type SamuraiAIChatOutput } from
 import { getDailyWisdom, type GetWisdomInput, type GetWisdomOutput } from "@/ai/flows/get-daily-wisdom";
 import { AizenChatWindow } from "@/components/aizen/AizenChatWindow";
 import { AizenChatInput } from "@/components/aizen/AizenChatInput";
-import { DailyWisdomDisplay } from "@/components/aizen/DailyWisdomDisplay";
+// Removed DailyWisdomDisplay import
 import type { Message } from "@/components/aizen/AizenChatMessage";
 import { useToast } from "@/hooks/use-toast";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
@@ -25,7 +26,7 @@ export default function AizenCompanionPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [dailyWisdomText, setDailyWisdomText] = useState<string | null>(null);
+  // Removed dailyWisdomText state
   const { toast } = useToast();
   const isInitialMount = useRef(true);
 
@@ -54,31 +55,32 @@ export default function AizenCompanionPage() {
     const lastFetchDateStr = getLocalStorageItem<string | null>(LAST_WISDOM_FETCH_DATE_KEY, null);
     const storedWisdom = getLocalStorageItem<string | null>(DAILY_WISDOM_KEY, null);
 
+    // If not forcing refresh, and wisdom is fresh, just ensure it's in local storage.
     if (storedWisdom && lastFetchDateStr && isToday(parseISO(lastFetchDateStr)) && !forceRefresh) {
-      setDailyWisdomText(storedWisdom);
-      return;
+      return; // Wisdom is fresh and in storage, nothing to do for a non-forced refresh.
     }
 
-    // If forcing refresh or old wisdom, show a temporary loading state for wisdom
-    if(forceRefresh) setDailyWisdomText("Aizen is seeking new enlightenment...");
-
+    // Optional: could add a loading toast if forceRefresh is true
+    // if(forceRefresh) {
+    //   toast({ title: "Aizen is seeking enlightenment..." });
+    // }
 
     try {
       const wisdomInput: GetWisdomInput = {};
       const wisdomOutput: GetWisdomOutput = await getDailyWisdom(wisdomInput);
-      setDailyWisdomText(wisdomOutput.wisdom);
+      
       setLocalStorageItem(DAILY_WISDOM_KEY, wisdomOutput.wisdom);
       setLocalStorageItem(LAST_WISDOM_FETCH_DATE_KEY, new Date().toISOString());
-      if (forceRefresh) { // Only speak if it was a manual refresh action
+
+      if (forceRefresh) { // Only speak and toast if it was a manual refresh action (button click)
          if (ttsEnabled && isSpeechSynthesisSupported) {
           speak(wisdomOutput.wisdom);
         }
-        toast({ title: "Aizen's Wisdom", description: "A fresh insight has been shared." });
+        toast({ title: "Aizen's Wisdom", description: wisdomOutput.wisdom });
       }
     } catch (error) {
       console.error("Error getting daily wisdom from Aizen:", error);
       const errorMessage = "Aizen's wisdom is elusive at this moment. The scrolls are blank.";
-      setDailyWisdomText(errorMessage); // Show error in the wisdom display
       if (forceRefresh) {
         toast({
           title: "Wisdom Error",
@@ -86,13 +88,15 @@ export default function AizenCompanionPage() {
           variant: "destructive",
         });
       }
+      // If not forceRefresh, error is silent, only logged to console.
     }
   }, [toast, ttsEnabled, isSpeechSynthesisSupported, speak]);
 
   useEffect(() => {
-    fetchAndSetDailyWisdom();
+    // Fetch on initial mount to ensure wisdom is cached if stale or missing
+    fetchAndSetDailyWisdom(false); 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Fetch on initial mount
+  }, []); 
 
   useEffect(() => {
     const storedMessages = getLocalStorageItem<Message[] | null>(AIZEN_CHAT_HISTORY_KEY, null);
@@ -160,7 +164,7 @@ export default function AizenCompanionPage() {
 
     try {
       const historyForAI = messages
-        .filter(msg => !msg.isLoadingPlaceholder) // Exclude previous thinking messages from history
+        .filter(msg => !msg.isLoadingPlaceholder) 
         .slice(-CHAT_HISTORY_CONTEXT_LENGTH)
         .map(msg => ({ sender: msg.sender, text: msg.text }));
       
@@ -171,14 +175,14 @@ export default function AizenCompanionPage() {
       const aiOutput: SamuraiAIChatOutput = await samuraiAIChat(aiInput);
       
       const aizenMessage: Message = {
-        id: uuidv4(), // New ID for the actual response
+        id: uuidv4(), 
         sender: 'aizen',
         text: aiOutput.response,
         timestamp: new Date(),
         imageUrl: aiOutput.imageUrl,
         imagePrompt: aiOutput.imagePrompt,
       };
-      // Replace thinking message with actual response
+      
       setMessages(prev => prev.map(m => m.id === thinkingMessageId ? aizenMessage : m));
 
 
@@ -205,7 +209,7 @@ export default function AizenCompanionPage() {
       };
       setMessages(prev => prev.map(m => m.id === thinkingMessageId ? errorMessage : m));
     } finally {
-      setIsLoading(false); // This will remove the generic skeleton loader from ChatWindow if it's still active
+      setIsLoading(false); 
     }
   }, [inputValue, messages, speak, ttsEnabled, isSpeechSynthesisSupported, toast]);
 
@@ -218,27 +222,23 @@ export default function AizenCompanionPage() {
   }, [toast]);
 
   const handleGetWisdomButton = useCallback(async () => {
-    // This button now primarily serves to refresh the wisdom,
-    // or show a loading state if initial fetch is slow.
-    // The actual display is handled by DailyWisdomDisplay.
-    setIsLoading(true); // General loading state for this action
-    await fetchAndSetDailyWisdom(true); // force refresh
+    setIsLoading(true); 
+    await fetchAndSetDailyWisdom(true); // force refresh, will toast/speak
     setIsLoading(false);
   }, [fetchAndSetDailyWisdom]);
 
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden">
-      <DailyWisdomDisplay wisdom={dailyWisdomText} />
-      <div className="flex-grow flex flex-col overflow-hidden">
+      {/* DailyWisdomDisplay removed from here */}
+      <div className="flex-grow flex flex-col overflow-hidden pt-2"> {/* Added pt-2 for a little top spacing */}
         <AizenChatWindow messages={messages} isLoading={false} onUpdateMessage={handleUpdateMessage} /> 
-        {/* isLoading prop to AizenChatWindow might be redundant now if using placeholder messages */}
       </div>
       <AizenChatInput
         inputValue={inputValue}
         onInputChange={setInputValue}
         onSendMessage={() => handleSendMessage()}
-        isLoading={isLoading} // This isLoading is for the input field and send button
+        isLoading={isLoading} 
         isRecording={isRecording}
         startRecording={startListening}
         stopRecording={stopListening}
@@ -251,8 +251,9 @@ export default function AizenCompanionPage() {
         onTtsToggle={setTtsEnabled}
         isSpeechSynthesisSupported={isSpeechSynthesisSupported}
         onClearChat={handleClearChat}
-        onGetWisdom={handleGetWisdomButton} // Renamed for clarity
+        onGetWisdom={handleGetWisdomButton}
       />
     </main>
   );
 }
+
