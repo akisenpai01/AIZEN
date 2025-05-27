@@ -24,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark"> {/* Force dark theme for the app */}
+    <html lang="en" className="dark">{/* Force dark theme for the app */}
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <div 
           className="fixed inset-0 z-[-1] bg-cover bg-center bg-no-repeat"
