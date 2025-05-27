@@ -7,7 +7,6 @@ import { samuraiAIChat, type SamuraiAIChatInput, type SamuraiAIChatOutput } from
 import { getDailyWisdom, type GetWisdomInput, type GetWisdomOutput } from "@/ai/flows/get-daily-wisdom";
 import { AizenChatWindow } from "@/components/aizen/AizenChatWindow";
 import { AizenChatInput } from "@/components/aizen/AizenChatInput";
-// Removed DailyWisdomDisplay import
 import type { Message } from "@/components/aizen/AizenChatMessage";
 import { useToast } from "@/hooks/use-toast";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
@@ -20,13 +19,12 @@ import { isToday, parseISO } from 'date-fns';
 const AIZEN_CHAT_HISTORY_KEY = 'aizen_chat_history';
 const DAILY_WISDOM_KEY = 'aizen_daily_wisdom';
 const LAST_WISDOM_FETCH_DATE_KEY = 'aizen_last_wisdom_fetch_date';
-const CHAT_HISTORY_CONTEXT_LENGTH = 5;
+const CHAT_HISTORY_CONTEXT_LENGTH = 5; // Keep 5 messages for AI context
 
 export default function AizenCompanionPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  // Removed dailyWisdomText state
   const { toast } = useToast();
   const isInitialMount = useRef(true);
 
@@ -55,15 +53,9 @@ export default function AizenCompanionPage() {
     const lastFetchDateStr = getLocalStorageItem<string | null>(LAST_WISDOM_FETCH_DATE_KEY, null);
     const storedWisdom = getLocalStorageItem<string | null>(DAILY_WISDOM_KEY, null);
 
-    // If not forcing refresh, and wisdom is fresh, just ensure it's in local storage.
     if (storedWisdom && lastFetchDateStr && isToday(parseISO(lastFetchDateStr)) && !forceRefresh) {
-      return; // Wisdom is fresh and in storage, nothing to do for a non-forced refresh.
+      return; 
     }
-
-    // Optional: could add a loading toast if forceRefresh is true
-    // if(forceRefresh) {
-    //   toast({ title: "Aizen is seeking enlightenment..." });
-    // }
 
     try {
       const wisdomInput: GetWisdomInput = {};
@@ -72,7 +64,7 @@ export default function AizenCompanionPage() {
       setLocalStorageItem(DAILY_WISDOM_KEY, wisdomOutput.wisdom);
       setLocalStorageItem(LAST_WISDOM_FETCH_DATE_KEY, new Date().toISOString());
 
-      if (forceRefresh) { // Only speak and toast if it was a manual refresh action (button click)
+      if (forceRefresh) { 
          if (ttsEnabled && isSpeechSynthesisSupported) {
           speak(wisdomOutput.wisdom);
         }
@@ -80,7 +72,12 @@ export default function AizenCompanionPage() {
       }
     } catch (error) {
       console.error("Error getting daily wisdom from Aizen:", error);
-      const errorMessage = "Aizen's wisdom is elusive at this moment. The scrolls are blank.";
+      let errorMessage = "Aizen's wisdom is elusive at this moment. The scrolls are blank.";
+      if (error instanceof Error) {
+        if (error.message.toLowerCase().includes("service unavailable") || error.message.toLowerCase().includes("overloaded") || error.message.includes("503")) {
+          errorMessage = "Aizen's mind is currently overwhelmed. Please try again in a few moments for wisdom.";
+        }
+      }
       if (forceRefresh) {
         toast({
           title: "Wisdom Error",
@@ -88,12 +85,10 @@ export default function AizenCompanionPage() {
           variant: "destructive",
         });
       }
-      // If not forceRefresh, error is silent, only logged to console.
     }
   }, [toast, ttsEnabled, isSpeechSynthesisSupported, speak]);
 
   useEffect(() => {
-    // Fetch on initial mount to ensure wisdom is cached if stale or missing
     fetchAndSetDailyWisdom(false); 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); 
@@ -156,7 +151,7 @@ export default function AizenCompanionPage() {
     const thinkingMessage: Message = {
         id: thinkingMessageId,
         sender: 'aizen',
-        text: "...",
+        text: "...", // Standard "thinking" text
         timestamp: new Date(),
         isLoadingPlaceholder: true,
     };
@@ -192,9 +187,16 @@ export default function AizenCompanionPage() {
 
     } catch (error) {
       console.error("Error communicating with Aizen AI:", error);
-      const errorText = error instanceof Error && error.message.includes("blocked") 
-        ? "Aizen senses a sensitive topic. Perhaps another path of inquiry?"
-        : "Aizen is momentarily lost in the echoes of the void. Please try rephrasing.";
+      let errorText = "Aizen is momentarily lost in the echoes of the void. Please try rephrasing.";
+      if (error instanceof Error) {
+        if (error.message.toLowerCase().includes("blocked")) { 
+          errorText = "Aizen senses a sensitive topic. Perhaps another path of inquiry?";
+        } else if (error.message.toLowerCase().includes("service unavailable") || error.message.toLowerCase().includes("overloaded") || error.message.includes("503")) {
+          errorText = "Aizen's mind is currently overwhelmed by many thoughts. Please try again in a few moments.";
+        } else if (error.message.includes("Aizen's artistic vision is clouded")) { 
+            errorText = error.message; // Use the specific error from image generation
+        }
+      }
       
       toast({
         title: "Aizen's Contemplation",
@@ -223,16 +225,15 @@ export default function AizenCompanionPage() {
 
   const handleGetWisdomButton = useCallback(async () => {
     setIsLoading(true); 
-    await fetchAndSetDailyWisdom(true); // force refresh, will toast/speak
+    await fetchAndSetDailyWisdom(true); 
     setIsLoading(false);
   }, [fetchAndSetDailyWisdom]);
 
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden">
-      {/* DailyWisdomDisplay removed from here */}
-      <div className="flex-grow flex flex-col overflow-hidden pt-2"> {/* Added pt-2 for a little top spacing */}
-        <AizenChatWindow messages={messages} isLoading={false} onUpdateMessage={handleUpdateMessage} /> 
+      <div className="flex-grow flex flex-col overflow-hidden pt-2">
+        <AizenChatWindow messages={messages} isLoading={isLoading} onUpdateMessage={handleUpdateMessage} /> 
       </div>
       <AizenChatInput
         inputValue={inputValue}
