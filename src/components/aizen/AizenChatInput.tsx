@@ -4,11 +4,13 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Trash2 } from "lucide-react"; // Removed ScrollText import
+import { Send, Trash2 } from "lucide-react";
 import { PulsatingMicIcon } from "./PulsatingMicIcon";
 import type { FormEvent } from "react";
 import type { CustomSpeechSynthesisVoice } from "@/hooks/useSpeechSynthesis";
 import { AizenSettings } from "./AizenSettings";
+import type { Theme } from '@/app/page'; // Assuming Theme type is exported from page.tsx or a types file
+
 
 interface AizenChatInputProps {
   inputValue: string;
@@ -27,9 +29,12 @@ interface AizenChatInputProps {
   ttsEnabled: boolean;
   onTtsToggle: (enabled: boolean) => void;
   isSpeechSynthesisSupported: boolean;
-  // New props
+  // Chat Clear
   onClearChat: () => void;
-  // Removed onGetWisdom prop
+  // Theme props
+  availableThemes: Theme[];
+  selectedThemeName: string;
+  onThemeChange: (themeName: string) => void;
 }
 
 export function AizenChatInput({
@@ -49,7 +54,9 @@ export function AizenChatInput({
   onTtsToggle,
   isSpeechSynthesisSupported,
   onClearChat,
-  // Removed onGetWisdom from destructuring
+  availableThemes,
+  selectedThemeName,
+  onThemeChange,
 }: AizenChatInputProps) {
   
   const handleSubmit = (e: FormEvent) => {
@@ -74,7 +81,6 @@ export function AizenChatInput({
         className="flex items-center gap-2"
         suppressHydrationWarning={true} 
       >
-        {/* Removed Get Wisdom button */}
         <Input
           type="text"
           placeholder={isRecording ? "Listening..." : "Speak or type your thoughts..."}
@@ -129,6 +135,9 @@ export function AizenChatInput({
           ttsEnabled={ttsEnabled}
           onTtsToggle={onTtsToggle}
           isSpeechSynthesisSupported={isSpeechSynthesisSupported}
+          availableThemes={availableThemes}
+          selectedThemeName={selectedThemeName}
+          onThemeChange={onThemeChange}
         />
       </form>
       {speechRecognitionError && <p className="text-xs text-destructive mt-1">{speechRecognitionError}</p>}

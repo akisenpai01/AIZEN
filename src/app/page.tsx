@@ -4,22 +4,37 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { samuraiAIChat, type SamuraiAIChatInput, type SamuraiAIChatOutput } from "@/ai/flows/samurai-ai-chat";
-// Removed getDailyWisdom import
 import { AizenChatWindow } from "@/components/aizen/AizenChatWindow";
 import { AizenChatInput } from "@/components/aizen/AizenChatInput";
 import type { Message } from "@/components/aizen/AizenChatMessage";
+import { Input } from "@/components/ui/input"; // For Search
+import { Button } from "@/components/ui/button"; // For Search
+import { Search, XCircle } from "lucide-react"; // For Search
 import { useToast } from "@/hooks/use-toast";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { v4 as uuidv4 } from 'uuid';
 import { getLocalStorageItem, setLocalStorageItem } from "@/lib/localStorageUtils";
-// Removed date-fns imports as they were only for daily wisdom
-// import { isToday, parseISO } from 'date-fns';
-
 
 const AIZEN_CHAT_HISTORY_KEY = 'aizen_chat_history';
-// Removed daily wisdom local storage keys
-const CHAT_HISTORY_CONTEXT_LENGTH = 5; // Keep 5 messages for AI context
+const CHAT_HISTORY_CONTEXT_LENGTH = 10; // Increased context length for better conversational flow
+const AIZEN_THEME_KEY = 'aizen_theme_name'; // For theme persistence
+
+export interface Theme {
+  name: string;
+  bgImage: string;
+  dataAiHint: string;
+  // Potentially add accent colors here later
+}
+
+// Define available themes (could be moved to a config file or fetched)
+const availableThemes: Theme[] = [
+  { name: 'Default', bgImage: "https://media-hosting.imagekit.io/7e8c99534f4d4798/wp9226062-4k-samurai-mobile-wallpapers.jpg?Expires=1840948638&Key-Pair-Id=K2ZIVPTIP2VGHC&Signature=r62I1Q4W4YHDy7eiAKqwWodbPFzVNXXwioylagBQi16o1rzM9Y6dcqUPdEi3RT-sYxwAiJdHM74NsQs-Uvb4lM7lUKxM9ZzFbZOMaz9rrmV04KHyqrugDwVIQTOC7C95kY90o42Gd1lmMUznk-27FKLdFA1w82wzZFl0NbXnLu6~E2IIDbm391RQqbef8~TLw2rIRWM6BG0Efgjh4T34zIsevcrRGcsj~LoNgNPR12Kuk6VotvanRGnuSwBoMXj7mAnxLPwAafsbgi~rUxv-mWElzAlUD90cerywZme6rtLYp5g9nQB7e-YWpa3poyalPdIrIB9A-0YyoP8pyWKyow__", dataAiHint: 'samurai landscape' },
+  { name: 'Serene Garden', bgImage: 'https://placehold.co/1920x1080/A9A9A9/FFFFFF.png?text=Serene+Garden', dataAiHint: 'zen garden' },
+  { name: 'Dojo Training', bgImage: 'https://placehold.co/1920x1080/2F4F4F/FFFFFF.png?text=Dojo+Training', dataAiHint: 'dojo interior' },
+  { name: 'Moonlit Night', bgImage: 'https://placehold.co/1920x1080/483D8B/FFFFFF.png?text=Moonlit+Night', dataAiHint: 'moon night' },
+];
+
 
 export default function AizenCompanionPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -27,6 +42,13 @@ export default function AizenCompanionPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const isInitialMount = useRef(true);
+
+  // Theme state
+  const [selectedThemeName, setSelectedThemeName] = useState<string>(availableThemes[0].name);
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [displayedMessages, setDisplayedMessages] = useState<Message[]>([]);
 
 
   const {
@@ -49,8 +71,7 @@ export default function AizenCompanionPage() {
     setTtsEnabled,
   } = useSpeechSynthesis();
 
-  // Removed fetchAndSetDailyWisdom function and related useEffect
-
+  // Load chat history and theme from local storage
   useEffect(() => {
     const storedMessages = getLocalStorageItem<Message[] | null>(AIZEN_CHAT_HISTORY_KEY, null);
     if (storedMessages) {
@@ -60,28 +81,50 @@ export default function AizenCompanionPage() {
       }));
       setMessages(parsedMessages);
     }
+
+    const storedThemeName = getLocalStorageItem<string | null>(AIZEN_THEME_KEY, availableThemes[0].name);
+    setSelectedThemeName(storedThemeName || availableThemes[0].name);
+    // Actual background update is handled in layout.tsx via its own useEffect to avoid hydration issues here.
+    // This component just needs to set the key in localStorage.
+
     isInitialMount.current = false;
   }, []);
 
+  // Save chat history to local storage
   useEffect(() => {
     if (!isInitialMount.current) {
       setLocalStorageItem(AIZEN_CHAT_HISTORY_KEY, messages);
     }
   }, [messages]);
 
+  // Update voice transcript to input
   useEffect(() => {
     if (voiceTranscript) {
       setInputValue(voiceTranscript);
     }
   }, [voiceTranscript]);
   
+  // Send message when recording stops and transcript is not empty
   useEffect(() => {
     if (!isRecording && voiceTranscript.trim() !== "") {
       handleSendMessage(voiceTranscript);
-      setVoiceTranscript("");
+      setVoiceTranscript(""); // Clear transcript after sending
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording]);
+  }, [isRecording]); // Only re-run if isRecording changes
+
+  // Filter messages for search
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setDisplayedMessages(messages);
+    } else {
+      setDisplayedMessages(
+        messages.filter(msg =>
+          msg.text.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      );
+    }
+  }, [messages, searchTerm]);
 
   const handleUpdateMessage = useCallback((messageId: string, updates: Partial<Message>) => {
     setMessages(prevMessages =>
@@ -109,7 +152,7 @@ export default function AizenCompanionPage() {
     const thinkingMessage: Message = {
         id: thinkingMessageId,
         sender: 'aizen',
-        text: "...", // Standard "thinking" text
+        text: "...", 
         timestamp: new Date(),
         isLoadingPlaceholder: true,
     };
@@ -138,7 +181,6 @@ export default function AizenCompanionPage() {
       
       setMessages(prev => prev.map(m => m.id === thinkingMessageId ? aizenMessage : m));
 
-
       if (ttsEnabled && isSpeechSynthesisSupported) {
         speak(aiOutput.response);
       }
@@ -151,8 +193,10 @@ export default function AizenCompanionPage() {
           errorText = "Aizen senses a sensitive topic. Perhaps another path of inquiry?";
         } else if (error.message.toLowerCase().includes("service unavailable") || error.message.toLowerCase().includes("overloaded") || error.message.includes("503")) {
           errorText = "Aizen's mind is currently overwhelmed by many thoughts. Please try again in a few moments.";
-        } else if (error.message.includes("Aizen's artistic vision is clouded")) { 
-            errorText = error.message; // Use the specific error from image generation
+        } else if (error.message.includes("Aizen's artistic vision is clouded") || error.message.includes("Aizen's muse is silent")) { 
+            errorText = error.message; 
+        } else if (error.message.includes("unreadable") || error.message.includes("elusive")) {
+            errorText = error.message;
         }
       }
       
@@ -181,12 +225,52 @@ export default function AizenCompanionPage() {
     });
   }, [toast]);
 
-  // Removed handleGetWisdomButton function
+  const handleThemeChange = (themeName: string) => {
+    setSelectedThemeName(themeName);
+    setLocalStorageItem(AIZEN_THEME_KEY, themeName);
+    // Force a re-render of layout by updating a dummy state or by a mechanism that layout listens to.
+    // Forcing a full page reload is also an option for simplicity if direct state passing is too complex.
+    // The layout.tsx useEffect will pick up the change from localStorage.
+    // To ensure immediate visual update, we can try to manually update the background style if feasible,
+    // or accept that a refresh might be needed for full effect if not using context.
+    // For now, layout.tsx will handle it on next load or if it listens to storage events.
+    // To attempt an immediate update (might be slightly janky without context):
+    const selectedTheme = availableThemes.find(t => t.name === themeName);
+    if (selectedTheme && typeof window !== 'undefined') {
+        const bgElement = document.getElementById('app-background');
+        if (bgElement) {
+            bgElement.style.backgroundImage = `url('${selectedTheme.bgImage}')`;
+            bgElement.setAttribute('data-ai-hint', selectedTheme.dataAiHint);
+        }
+    }
+  };
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden">
+      <div className="p-2 border-b border-border/30 bg-background/30 backdrop-blur-sm">
+        <div className="relative flex items-center">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search chat history..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-10 bg-input/70 border-border/50 focus:ring-accent/50 placeholder:text-muted-foreground/70"
+          />
+          {searchTerm && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-accent"
+              onClick={() => setSearchTerm("")}
+            >
+              <XCircle className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
       <div className="flex-grow flex flex-col overflow-hidden pt-2">
-        <AizenChatWindow messages={messages} isLoading={isLoading} onUpdateMessage={handleUpdateMessage} /> 
+        <AizenChatWindow messages={displayedMessages} isLoading={isLoading} onUpdateMessage={handleUpdateMessage} /> 
       </div>
       <AizenChatInput
         inputValue={inputValue}
@@ -205,7 +289,10 @@ export default function AizenCompanionPage() {
         onTtsToggle={setTtsEnabled}
         isSpeechSynthesisSupported={isSpeechSynthesisSupported}
         onClearChat={handleClearChat}
-        // Removed onGetWisdom prop
+        // Pass theme props to settings
+        availableThemes={availableThemes}
+        selectedThemeName={selectedThemeName}
+        onThemeChange={handleThemeChange}
       />
     </main>
   );

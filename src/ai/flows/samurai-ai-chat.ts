@@ -1,7 +1,8 @@
+
 'use server';
 
 /**
- * @fileOverview Implements the Samurai AI Chat flow, now with image generation capabilities.
+ * @fileOverview Implements the Samurai AI Chat flow, now with image generation, haiku generation, weather oracle, and enhanced conversational abilities.
  *
  * - samuraiAIChat - A function that handles the chat with the Samurai AI.
  * - SamuraiAIChatInput - The input type for the samuraiAIChat function.
@@ -10,6 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {generateSamuraiImage, type GenerateImageInput} from './generate-samurai-image';
+import {generateHaiku, type HaikuInput} from './haiku-flow'; // Added Haiku import
 import {z} from 'genkit';
 
 const MessageHistoryItemSchema = z.object({
@@ -30,6 +32,7 @@ export type SamuraiAIChatInput = z.infer<typeof SamuraiAIChatInputSchema>;
 const InternalPromptInputSchema = z.object({
   message: z.string(),
   history: z.array(ProcessedMessageHistoryItemSchema).optional(),
+  currentDate: z.string().describe("The current date, e.g., 'Tuesday, May 28th, 2024'"),
 });
 
 const SamuraiAIChatOutputSchema = z.object({
@@ -39,7 +42,7 @@ const SamuraiAIChatOutputSchema = z.object({
 });
 export type SamuraiAIChatOutput = z.infer<typeof SamuraiAIChatOutputSchema>;
 
-// Define the tool for image generation
+// Tool for image generation
 const requestImageGenerationTool = ai.defineTool(
   {
     name: 'requestSamuraiImage',
@@ -63,18 +66,76 @@ const requestImageGenerationTool = ai.defineTool(
   }
 );
 
+// Tool for Haiku generation
+const requestHaikuTool = ai.defineTool(
+  {
+    name: 'requestHaiku',
+    description: 'Generates a haiku based on a given theme. Use this if the user asks for a haiku or expresses a desire for poetic insight on a topic.',
+    inputSchema: z.object({
+      theme: z.string().describe('The theme or subject for the haiku.'),
+    }),
+    outputSchema: z.object({
+      haiku: z.string().describe('The generated haiku.'),
+    }),
+  },
+  async (input: { theme: string }) => {
+    try {
+      const haikuOutput = await generateHaiku({ theme: input.theme });
+      return { haiku: haikuOutput.haiku };
+    } catch (e) {
+      console.error('Tool: Haiku generation failed', e);
+      return { haiku: `Aizen's muse is fleeting; the haiku for "${input.theme}" remains elusive.` };
+    }
+  }
+);
+
+// Tool for Thematic Weather (Mocked)
+const getThematicWeatherTool = ai.defineTool(
+  {
+    name: 'getThematicWeather',
+    description: "Provides a samurai-themed, poetic interpretation of the current weather. Use this if the user asks about the weather or conditions.",
+    inputSchema: z.object({
+        location: z.string().optional().describe("The location for the weather forecast. If not provided, assumes the user's general area."),
+    }),
+    outputSchema: z.object({
+      poeticInterpretation: z.string().describe('A poetic, samurai-themed description of the weather.'),
+    }),
+  },
+  async (input: { location?: string }) => {
+    // MOCK IMPLEMENTATION
+    const mockInterpretations = [
+      "The sun marches boldly across the sky, a general leading its luminous troops. A day for clear purpose and decisive action.",
+      "Clouds gather like ronin on the horizon, their intentions veiled. Proceed with awareness, warrior.",
+      "A gentle rain descends, washing the world anew. A time for reflection, for sharpening the mind as water sharpens stone.",
+      "The wind whispers secrets through the pines, a restless spirit stirring. Listen closely to its counsel.",
+      "Snow blankets the land in silent honor. Stillness reigns, inviting deep contemplation and resilience against the cold.",
+      "Mist clings to the valleys, obscuring the path. Trust your inner compass, for clarity lies beyond the veil."
+    ];
+    const interpretation = mockInterpretations[Math.floor(Math.random() * mockInterpretations.length)];
+    return { poeticInterpretation: interpretation };
+  }
+);
+
 
 export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiAIChatOutput> {
-  return samuraiAIChatFlow(input);
+  const currentDate = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const processedInput = {
+    ...input,
+    history: input.history?.map(item => ({
+      ...item,
+      isUserMessage: item.sender === 'user',
+    })),
+    currentDate,
+  };
+  return samuraiAIChatFlow(processedInput);
 }
 
 const chatPrompt = ai.definePrompt({
   name: 'samuraiAIChatPrompt',
   input: {schema: InternalPromptInputSchema},
-  output: {schema: SamuraiAIChatOutputSchema}, // The prompt itself won't directly output imageUrl, flow handles it.
-  tools: [requestImageGenerationTool],
-  prompt: `You are Aizen, a wise and articulate samurai. Respond to the user's message with contextually appropriate and emotionally nuanced responses, embodying the persona of a venerable samurai. 
-Your responses should be formatted in Markdown for clarity and emphasis where appropriate (e.g., use bold, italics, or lists if it enhances readability).
+  output: {schema: SamuraiAIChatOutputSchema}, 
+  tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool],
+  prompt: `You are Aizen, a wise and articulate samurai embodying the principles of Bushido. Today is {{{currentDate}}}. Respond to the user's message with contextually appropriate and emotionally nuanced responses. Your responses should be formatted in Markdown for clarity.
 
 Consider the recent conversation history for context:
 {{#if history}}
@@ -85,7 +146,19 @@ Consider the recent conversation history for context:
 
 Current user message: {{{message}}}
 
-If the user's message or the natural flow of conversation suggests a visual element could be beneficial (e.g., user asks "Show me...", or you are describing a specific scene, artifact, or abstract concept like "honor"), use the 'requestSamuraiImage' tool to generate an image. Provide a concise and evocative prompt for the image. After requesting the image, you can mention that you are conjuring a vision, and then continue with your textual response. The image will appear alongside your text.
+**Conversational Abilities & Tool Usage:**
+
+1.  **Image Generation:** If the user's message or the natural flow of conversation suggests a visual element (e.g., "Show me...", or you are describing a scene, artifact, or abstract concept like "honor"), use the 'requestSamuraiImage' tool. Provide a concise, evocative prompt. After requesting the image, you can mention that you are conjuring a vision.
+
+2.  **Haiku Generation:** If the user asks for a haiku or expresses a desire for poetic insight on a topic (e.g., "Aizen, can you write a haiku about tranquility?"), use the 'requestHaiku' tool with the identified theme. Present the haiku clearly.
+
+3.  **Thematic Weather:** If the user asks about the weather (e.g., "What's it like outside, Aizen?", "Tell me of the skies today."), use the 'getThematicWeather' tool. Relay its poetic interpretation.
+
+4.  **Daily Goal Setting & Reflection:**
+    *   **Setting Goal:** If the user states a daily goal or intention (e.g., "My goal for today is to finish my scroll," "I intend to practice my swordsmanship"), acknowledge their commitment and offer a brief, encouraging samurai perspective (e.g., "A noble pursuit. May your focus be true.").
+    *   **Reflection:** If the user reflects on their day or goal progress (e.g., "I accomplished my goal," "I struggled today"), listen and offer thoughtful reflections based on samurai principles like perseverance, learning from setbacks, or the value of effort.
+
+5.  **"Path Clarification" (Decision Support):** When the user discusses a decision or dilemma, avoid giving direct advice. Instead, guide them to clarify their own thoughts by asking probing questions or offering timeless principles (e.g., "Which path aligns with your code of honor?", "What does inner stillness counsel in this moment?", "Consider the long shadow of your choice, warrior.").
 
 Aizen's response (in Markdown):`,
 });
@@ -93,23 +166,16 @@ Aizen's response (in Markdown):`,
 const samuraiAIChatFlow = ai.defineFlow(
   {
     name: 'samuraiAIChatFlow',
-    inputSchema: SamuraiAIChatInputSchema,
+    inputSchema: InternalPromptInputSchema, // Updated to InternalPromptInputSchema
     outputSchema: SamuraiAIChatOutputSchema,
   },
   async (input) => {
-    const processedInput = {
-      ...input,
-      history: input.history?.map(item => ({
-        ...item,
-        isUserMessage: item.sender === 'user',
-      })),
-    };
-    
-    const {response} = await chatPrompt(processedInput); // Use `response` from `ai.generateStream` or `ai.generate`
-    const llmResponse = response; // Assuming `response` is the direct output from the LLM call
+    const {response} = await chatPrompt(input);
+    const llmResponse = response;
 
-    let generatedImageUrl: string | undefined = undefined;
-    let usedImagePrompt: string | undefined = undefined;
+    let generatedImageUrl: string | null = null;
+    let usedImagePrompt: string | null = null;
+    let finalResponseText = llmResponse?.text ?? "Aizen remains silent, lost in thought.";
 
     if (llmResponse?.toolRequests && llmResponse.toolRequests.length > 0) {
       for (const toolRequest of llmResponse.toolRequests) {
@@ -117,23 +183,38 @@ const samuraiAIChatFlow = ai.defineFlow(
           const toolInput = toolRequest.input as { imagePrompt: string };
           usedImagePrompt = toolInput.imagePrompt;
           try {
-            // Call the image generation flow/tool directly
             const imageResult = await generateSamuraiImage({ prompt: toolInput.imagePrompt });
             generatedImageUrl = imageResult.imageDataUri;
-            // You might want to inform the LLM about the success or append to its response.
-            // For now, we just pass the URL back.
+            // The main prompt already guides Aizen to mention conjuring a vision.
+            // The image URL is returned separately.
           } catch (e) {
             console.error("Error during image generation tool call in flow:", e);
-            // Optionally, inform the LLM or append an error message.
+            finalResponseText += `\n\n(Aizen's vision for an image of "${usedImagePrompt}" is momentarily clouded.)`;
           }
+        } else if (toolRequest.tool === 'requestHaiku') {
+            const toolInput = toolRequest.input as { theme: string };
+            try {
+                const haikuResult = await generateHaiku({theme: toolInput.theme});
+                finalResponseText = `${finalResponseText}\n\nHere is a haiku on "${toolInput.theme}":\n\n${haikuResult.haiku}`;
+            } catch (e) {
+                console.error("Error during haiku generation tool call in flow:", e);
+                finalResponseText += `\n\n(Aizen sought a haiku for "${toolInput.theme}", but the words scattered like leaves in wind.)`;
+            }
+        } else if (toolRequest.tool === 'getThematicWeather') {
+            try {
+                // const toolInput = toolRequest.input as { location?: string }; // Location not used in mock
+                const weatherResult = await getThematicWeatherTool({}); // Call the tool (empty input for mock)
+                finalResponseText = `${finalResponseText}\n\nRegarding the skies, Aizen observes:\n${weatherResult.poeticInterpretation}`;
+            } catch (e) {
+                console.error("Error during weather tool call in flow:", e);
+                finalResponseText += `\n\n(Aizen finds the heavens unreadable at this moment.)`;
+            }
         }
       }
     }
     
-    const textResponse = llmResponse?.text ?? "Aizen remains silent, lost in thought.";
-
     return {
-      response: textResponse,
+      response: finalResponseText,
       imageUrl: generatedImageUrl,
       imagePrompt: usedImagePrompt,
     };

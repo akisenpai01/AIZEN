@@ -1,3 +1,4 @@
+
 // src/components/aizen/AizenSettings.tsx
 "use client";
 
@@ -7,7 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { CustomSpeechSynthesisVoice } from "@/hooks/useSpeechSynthesis";
-import { Settings, Volume2, VolumeX } from "lucide-react";
+import { Settings, Volume2, VolumeX, Palette } from "lucide-react"; // Added Palette icon
+import type { Theme } from '@/app/page'; // Assuming Theme type is exported from page.tsx or a types file
 
 interface AizenSettingsProps {
   voices: CustomSpeechSynthesisVoice[];
@@ -16,6 +18,10 @@ interface AizenSettingsProps {
   ttsEnabled: boolean;
   onTtsToggle: (enabled: boolean) => void;
   isSpeechSynthesisSupported: boolean;
+  // Theme props
+  availableThemes: Theme[];
+  selectedThemeName: string;
+  onThemeChange: (themeName: string) => void;
 }
 
 export function AizenSettings({
@@ -24,7 +30,10 @@ export function AizenSettings({
   onVoiceChange,
   ttsEnabled,
   onTtsToggle,
-  isSpeechSynthesisSupported
+  isSpeechSynthesisSupported,
+  availableThemes,
+  selectedThemeName,
+  onThemeChange,
 }: AizenSettingsProps) {
   return (
     <Popover>
@@ -40,7 +49,37 @@ export function AizenSettings({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 bg-popover/90 backdrop-blur-md border-border/50 text-popover-foreground">
-        <div className="grid gap-4">
+        <div className="grid gap-6"> {/* Increased gap for sections */}
+          <div className="space-y-2">
+            <h4 className="font-medium leading-none">Interface Settings</h4>
+            <p className="text-sm text-muted-foreground">
+              Customize Aizen's appearance.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+                <Label htmlFor="theme-select" className="flex items-center gap-2">
+                    <Palette className="h-4 w-4" />
+                    Ambiance
+                </Label>
+            </div>
+            <Select
+                value={selectedThemeName}
+                onValueChange={onThemeChange}
+            >
+                <SelectTrigger id="theme-select" className="bg-input/80 border-border/70">
+                <SelectValue placeholder="Select a theme" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover/95 backdrop-blur-sm border-border/70">
+                {availableThemes.map((theme) => (
+                    <SelectItem key={theme.name} value={theme.name}>
+                    {theme.name}
+                    </SelectItem>
+                ))}
+                </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-2">
             <h4 className="font-medium leading-none">Voice Settings</h4>
             <p className="text-sm text-muted-foreground">
