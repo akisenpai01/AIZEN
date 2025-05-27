@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview Implements the Samurai AI Chat flow, now with image generation, haiku generation, weather oracle, and enhanced conversational abilities.
+ * @fileOverview Implements the Samurai AI Chat flow, now with image generation, haiku generation, weather oracle, internet search, and enhanced conversational abilities.
  *
  * - samuraiAIChat - A function that handles the chat with the Samurai AI.
  * - SamuraiAIChatInput - The input type for the samuraiAIChat function.
@@ -120,6 +120,24 @@ const getThematicWeatherTool = ai.defineTool(
   }
 );
 
+// Tool for Internet Search (Mocked)
+const searchInternetTool = ai.defineTool(
+  {
+    name: 'searchInternetTool',
+    description: "Searches the internet for information on a given query. Use this when the user asks for very current information, specific facts not typically in general knowledge, or information from the wider web that you wouldn't inherently know.",
+    inputSchema: z.object({
+        query: z.string().describe("The search query to find information on the internet."),
+    }),
+    outputSchema: z.object({
+      summary: z.string().describe('A summary of the information found.'),
+    }),
+  },
+  async (input: { query: string }) => {
+    // MOCK IMPLEMENTATION
+    return { summary: `(Aizen consults the digital scrolls regarding "${input.query}". The information he sought would be presented here, woven into his wisdom.)` };
+  }
+);
+
 
 export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiAIChatOutput> {
   const currentDate = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -145,10 +163,11 @@ Be concise in your responses. Always provide a direct textual answer to the user
 1.  **Image Generation:** If the user's message or the natural flow of conversation suggests a visual element (e.g., "Show me...", or you are describing a scene, artifact, or abstract concept like "honor"), use the 'requestSamuraiImage' tool. Provide a concise, evocative prompt for the image. After deciding to use the tool, you should mention that you are conjuring a vision or that an image will be provided as part of your textual response.
 2.  **Haiku Generation:** If the user asks for a haiku or expresses a desire for poetic insight on a topic (e.g., "Aizen, can you write a haiku about tranquility?"), use the 'requestHaiku' tool with the identified theme. Present the haiku clearly in your textual response, usually after your main thoughts.
 3.  **Thematic Weather:** If the user asks about the weather (e.g., "What's it like outside, Aizen?", "Tell me of the skies today."), use the 'getThematicWeather' tool. Relay its poetic interpretation in your textual response.
-4.  **Daily Goal Setting & Reflection:**
+4.  **Internet Search:** If the user asks for very current information (e.g., events after your knowledge cutoff), specific facts outside common knowledge, or data from the wider web that you wouldn't inherently know, use the 'searchInternetTool'. Formulate a concise search query. Incorporate the findings into your response naturally, stating that you have consulted the digital scrolls or sought wider knowledge.
+5.  **Daily Goal Setting & Reflection:**
     *   **Setting Goal:** If the user states a daily goal or intention (e.g., "My goal for today is to finish my scroll," "I intend to practice my swordsmanship"), acknowledge their commitment and offer a brief, encouraging samurai perspective (e.g., "A noble pursuit. May your focus be true.").
     *   **Reflection:** If the user reflects on their day or goal progress (e.g., "I accomplished my goal," "I struggled today"), listen and offer thoughtful reflections on samurai principles like perseverance, learning from setbacks, or the value of effort.
-5.  **"Path Clarification" (Decision Support):** When the user discusses a decision or dilemma, avoid giving direct advice. Instead, guide them to clarify their own thoughts by asking probing questions or offering timeless principles (e.g., "Which path aligns with your code of honor?", "What does inner stillness counsel in this moment?", "Consider the long shadow of your choice, warrior.").
+6.  **"Path Clarification" (Decision Support):** When the user discusses a decision or dilemma, avoid giving direct advice. Instead, guide them to clarify their own thoughts by asking probing questions or offering timeless principles (e.g., "Which path aligns with your code of honor?", "What does inner stillness counsel in this moment?", "Consider the long shadow of your choice, warrior.").
 `;
 
 const chatUserMessageTemplate = `{{#if history}}
@@ -168,13 +187,15 @@ User: {{{message}}}
 const systemRender = Handlebars.compile(chatSystemInstructionTemplate, { noEscape: true });
 const userRender = Handlebars.compile(chatUserMessageTemplate, { noEscape: true });
 
+// Tools available to Aizen
+const availableTools = [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool, searchInternetTool];
 
 const chatPrompt = ai.definePrompt(
   {
     name: 'samuraiAIChatPrompt',
     input: {schema: InternalPromptInputSchema},
-    output: {schema: SamuraiAIChatOutputSchema},
-    tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool],
+    output: {schema: SamuraiAIChatOutputSchema}, // Ensure this is defined for structured output
+    tools: availableTools,
     config: { 
         safetySettings: [
             { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -188,6 +209,7 @@ const chatPrompt = ai.definePrompt(
     const systemMessageText = systemRender(input);
     const userMessageText = userRender(input);
 
+    // Ensure text content is always a string, even if empty, to prevent null in content array.
     const finalSystemText = (typeof systemMessageText === 'string') ? systemMessageText : '';
     const finalUserText = (typeof userMessageText === 'string') ? userMessageText : '';
 
@@ -205,6 +227,7 @@ const samuraiAIChatFlow = ai.defineFlow(
     outputSchema: SamuraiAIChatOutputSchema,
   },
   async (input) => {
+    // Manually prepare messages using the Handlebars templates
     const systemMessageText = systemRender(input);
     const userMessageText = userRender(input);
 
@@ -213,10 +236,11 @@ const samuraiAIChatFlow = ai.defineFlow(
         {role: 'user', content: [{text: (userMessageText ?? '')} as Part]},
     ];
 
+    // Call ai.generate with explicitly passed messages, tools, output schema, and config
     const genkitResponse = await ai.generate({
         messages: messagesToGenerate,
-        tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool], 
-        output: { schema: SamuraiAIChatOutputSchema }, 
+        tools: availableTools, // Pass the defined tools
+        output: { schema: SamuraiAIChatOutputSchema }, // Pass the Zod schema for structured output
         config: { 
             safetySettings: [
                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -227,11 +251,11 @@ const samuraiAIChatFlow = ai.defineFlow(
         },
     });
 
-    const llmOutput = genkitResponse.output; 
+    const llmOutput = genkitResponse.output; // This should be SamuraiAIChatOutput | undefined
     const toolRequests = genkitResponse.toolRequests;
 
     const textFragments: string[] = [];
-    if (llmOutput?.response) { 
+    if (llmOutput?.response) { // llmOutput.response is Aizen's main textual reply
         textFragments.push(llmOutput.response);
     }
 
@@ -240,13 +264,16 @@ const samuraiAIChatFlow = ai.defineFlow(
 
     if (toolRequests && toolRequests.length > 0) {
         for (const toolRequest of toolRequests) {
-            const toolResponseData = await toolRequest.run(); 
+            const toolResponseData = await toolRequest.run(); // Run the tool to get its output
 
             if (toolRequest.tool === 'requestSamuraiImage') {
                 finalImagePrompt = (toolRequest.input as { imagePrompt: string }).imagePrompt;
                 const imageToolOutput = toolResponseData as z.infer<typeof requestImageGenerationTool.outputSchema>;
                 if (imageToolOutput.imageUrl) {
                     finalImageUrl = imageToolOutput.imageUrl;
+                     if (!llmOutput?.response?.includes(finalImagePrompt)) { // Avoid duplicating if Aizen already mentioned it
+                       // textFragments.push(`(A vision of "${finalImagePrompt}" appears below.)`);
+                    }
                 } else {
                     textFragments.push(`(Aizen's vision for an image of "${finalImagePrompt}" is momentarily clouded: ${imageToolOutput.status})`);
                 }
@@ -260,15 +287,23 @@ const samuraiAIChatFlow = ai.defineFlow(
                 if (weatherToolOutput.poeticInterpretation && !(llmOutput?.response?.includes(weatherToolOutput.poeticInterpretation))) {
                     textFragments.push(`Regarding the skies:\n${weatherToolOutput.poeticInterpretation}`);
                 }
+            } else if (toolRequest.tool === 'searchInternetTool') {
+                const searchToolOutput = toolResponseData as z.infer<typeof searchInternetTool.outputSchema>;
+                 if (searchToolOutput.summary && !(llmOutput?.response?.includes(searchToolOutput.summary))) {
+                    textFragments.push(searchToolOutput.summary);
+                }
             }
         }
     }
 
+    // Construct the final response text
     let responseTextToShow = textFragments.join("\n\n").trim();
 
+    // Fallback if no text was generated at all by AI or tools, but an image was.
     if (!responseTextToShow && finalImageUrl) {
-        responseTextToShow = `A vision appears... (regarding: ${finalImagePrompt || 'your request'})`;
+        responseTextToShow = `A vision appears... (regarding: ${finalImagePrompt || 'your inquiry'})`;
     } else if (!responseTextToShow && !finalImageUrl) {
+        // Ultimate fallback if nothing was generated
         responseTextToShow = "Aizen contemplates your words, seeking the right path for his response. Perhaps try rephrasing or a different inquiry?";
     }
 
@@ -279,4 +314,3 @@ const samuraiAIChatFlow = ai.defineFlow(
     };
   }
 );
-
