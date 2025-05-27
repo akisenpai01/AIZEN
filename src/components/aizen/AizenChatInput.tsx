@@ -63,7 +63,11 @@ export function AizenChatInput({
 
   return (
     <div className="p-4 bg-background/50 backdrop-blur-sm border-t border-border/30 shadow-md">
-      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <form 
+        onSubmit={handleSubmit} 
+        className="flex items-center gap-2"
+        suppressHydrationWarning={true}
+      >
         <Input
           type="text"
           placeholder={isRecording ? "Listening..." : "Speak or type your thoughts..."}
