@@ -50,7 +50,7 @@ const requestImageGenerationTool = ai.defineTool(
     inputSchema: z.object({
       imagePrompt: z.string().describe('A detailed textual prompt for the image to be generated. Describe the scene, characters, style (e.g., ink wash, ukiyo-e, modern anime).'),
     }),
-    outputSchema: z.object({
+    outputSchema: z.object({ // This schema is for the tool's output, not directly for the LLM's final response structure for image fields
       status: z.string().describe('Status of the image request, e.g., "Image generation initiated." or "Image generation failed."'),
       imageUrl: z.string().optional().describe('The data URI of the generated image, if successful.'),
     }),
@@ -119,8 +119,8 @@ const getThematicWeatherTool = ai.defineTool(
 
 export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiAIChatOutput> {
   const currentDate = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const processedInput = {
-    ...input,
+  const processedInput: InternalPromptInputSchema = {
+    message: input.message,
     history: input.history?.map(item => ({
       ...item,
       isUserMessage: item.sender === 'user',
@@ -133,6 +133,9 @@ export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiA
 const chatPrompt = ai.definePrompt({
   name: 'samuraiAIChatPrompt',
   input: {schema: InternalPromptInputSchema},
+  // The output.schema here guides the LLM's primary response structure.
+  // If the LLM uses a tool for image generation, it won't populate imageUrl/imagePrompt itself.
+  // The flow will handle that.
   output: {schema: SamuraiAIChatOutputSchema}, 
   tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool],
   prompt: `You are Aizen, a wise and articulate samurai embodying the principles of Bushido. Today is {{{currentDate}}}. Respond to the user's message with contextually appropriate and emotionally nuanced responses. Your responses should be formatted in Markdown for clarity.
@@ -148,11 +151,11 @@ Current user message: {{{message}}}
 
 **Conversational Abilities & Tool Usage:**
 
-1.  **Image Generation:** If the user's message or the natural flow of conversation suggests a visual element (e.g., "Show me...", or you are describing a scene, artifact, or abstract concept like "honor"), use the 'requestSamuraiImage' tool. Provide a concise, evocative prompt. After requesting the image, you can mention that you are conjuring a vision.
+1.  **Image Generation:** If the user's message or the natural flow of conversation suggests a visual element (e.g., "Show me...", or you are describing a scene, artifact, or abstract concept like "honor"), use the 'requestSamuraiImage' tool. Provide a concise, evocative prompt. After requesting the image, you should mention that you are conjuring a vision or that an image will be provided.
 
-2.  **Haiku Generation:** If the user asks for a haiku or expresses a desire for poetic insight on a topic (e.g., "Aizen, can you write a haiku about tranquility?"), use the 'requestHaiku' tool with the identified theme. Present the haiku clearly.
+2.  **Haiku Generation:** If the user asks for a haiku or expresses a desire for poetic insight on a topic (e.g., "Aizen, can you write a haiku about tranquility?"), use the 'requestHaiku' tool with the identified theme. Present the haiku clearly within your response.
 
-3.  **Thematic Weather:** If the user asks about the weather (e.g., "What's it like outside, Aizen?", "Tell me of the skies today."), use the 'getThematicWeather' tool. Relay its poetic interpretation.
+3.  **Thematic Weather:** If the user asks about the weather (e.g., "What's it like outside, Aizen?", "Tell me of the skies today."), use the 'getThematicWeather' tool. Relay its poetic interpretation in your response.
 
 4.  **Daily Goal Setting & Reflection:**
     *   **Setting Goal:** If the user states a daily goal or intention (e.g., "My goal for today is to finish my scroll," "I intend to practice my swordsmanship"), acknowledge their commitment and offer a brief, encouraging samurai perspective (e.g., "A noble pursuit. May your focus be true.").
@@ -166,57 +169,92 @@ Aizen's response (in Markdown):`,
 const samuraiAIChatFlow = ai.defineFlow(
   {
     name: 'samuraiAIChatFlow',
-    inputSchema: InternalPromptInputSchema, // Updated to InternalPromptInputSchema
-    outputSchema: SamuraiAIChatOutputSchema,
+    inputSchema: InternalPromptInputSchema, 
+    outputSchema: SamuraiAIChatOutputSchema, // This is the schema for the flow's final output
   },
   async (input) => {
-    const {response} = await chatPrompt(input);
-    const llmResponse = response;
+    const genkitResponse = await chatPrompt.generate({input}); // Use .generate() for full Genkit Response
 
-    let generatedImageUrl: string | null = null;
-    let usedImagePrompt: string | null = null;
-    let finalResponseText = llmResponse?.text ?? "Aizen remains silent, lost in thought.";
+    const structuredOutput = genkitResponse.output(); // This is SamuraiAIChatOutput | undefined from the LLM
+    const toolReqs = genkitResponse.toolRequests;    // This is ToolRequestPart[]
 
-    if (llmResponse?.toolRequests && llmResponse.toolRequests.length > 0) {
-      for (const toolRequest of llmResponse.toolRequests) {
+    // Initialize with the LLM's direct textual response, if available from structuredOutput.
+    let textResponseFromLLM = structuredOutput?.response ?? ""; 
+
+    // These will be populated by our tool execution if the image tool is called.
+    let finalToolGeneratedImageUrl: string | null = null;
+    let finalToolGeneratedImagePrompt: string | null = null;
+
+    if (toolReqs && toolReqs.length > 0) {
+      for (const toolRequest of toolReqs) {
         if (toolRequest.tool === 'requestSamuraiImage') {
           const toolInput = toolRequest.input as { imagePrompt: string };
-          usedImagePrompt = toolInput.imagePrompt;
+          finalToolGeneratedImagePrompt = toolInput.imagePrompt; // Store the prompt used for our tool
           try {
             const imageResult = await generateSamuraiImage({ prompt: toolInput.imagePrompt });
-            generatedImageUrl = imageResult.imageDataUri;
-            // The main prompt already guides Aizen to mention conjuring a vision.
-            // The image URL is returned separately.
+            finalToolGeneratedImageUrl = imageResult.imageDataUri; // Store the image data from our tool
+            // The prompt instructs Aizen to mention he's conjuring a vision.
+            // If textResponseFromLLM is empty, the fallback logic later will handle it.
           } catch (e) {
             console.error("Error during image generation tool call in flow:", e);
-            finalResponseText += `\n\n(Aizen's vision for an image of "${usedImagePrompt}" is momentarily clouded.)`;
+            textResponseFromLLM += `\n\n(Aizen's vision for an image of "${finalToolGeneratedImagePrompt}" is momentarily clouded.)`;
           }
         } else if (toolRequest.tool === 'requestHaiku') {
             const toolInput = toolRequest.input as { theme: string };
             try {
-                const haikuResult = await generateHaiku({theme: toolInput.theme});
-                finalResponseText = `${finalResponseText}\n\nHere is a haiku on "${toolInput.theme}":\n\n${haikuResult.haiku}`;
+                const haikuResult = await requestHaikuTool(toolInput); // Call the tool directly
+                // The prompt for Aizen instructs: "Present the haiku clearly within your response."
+                // So, Aizen's `textResponseFromLLM` should ideally already provide context.
+                // We append the haiku itself if the LLM didn't fully integrate it or if textResponseFromLLM was empty.
+                // A more advanced approach would feed this back to the LLM for summarization.
+                if (textResponseFromLLM && !textResponseFromLLM.includes(haikuResult.haiku)) {
+                    textResponseFromLLM += `\n\n${haikuResult.haiku}`;
+                } else if (!textResponseFromLLM) {
+                    textResponseFromLLM = `On the theme of "${toolInput.theme}":\n\n${haikuResult.haiku}`;
+                }
+                // If Aizen's response already contains the haiku (due to good prompting), this might duplicate.
+                // A simple check can be `if (!textResponseFromLLM.includes(haikuResult.haiku)) { ... }`
             } catch (e) {
                 console.error("Error during haiku generation tool call in flow:", e);
-                finalResponseText += `\n\n(Aizen sought a haiku for "${toolInput.theme}", but the words scattered like leaves in wind.)`;
+                textResponseFromLLM += `\n\n(Aizen sought a haiku for "${toolInput.theme}", but the words scattered like leaves in wind.)`;
             }
         } else if (toolRequest.tool === 'getThematicWeather') {
+            const toolInput = toolRequest.input as { location?: string };
             try {
-                // const toolInput = toolRequest.input as { location?: string }; // Location not used in mock
-                const weatherResult = await getThematicWeatherTool({}); // Call the tool (empty input for mock)
-                finalResponseText = `${finalResponseText}\n\nRegarding the skies, Aizen observes:\n${weatherResult.poeticInterpretation}`;
+                const weatherResult = await getThematicWeatherTool(toolInput); // Call the tool
+                // Prompt for Aizen: "Relay its poetic interpretation in your response."
+                // Similar to haiku, append if not already integrated by Aizen.
+                 if (textResponseFromLLM && !textResponseFromLLM.includes(weatherResult.poeticInterpretation)) {
+                    textResponseFromLLM += `\n\nRegarding the skies:\n${weatherResult.poeticInterpretation}`;
+                } else if (!textResponseFromLLM) {
+                    textResponseFromLLM = `Regarding the skies:\n${weatherResult.poeticInterpretation}`;
+                }
             } catch (e) {
                 console.error("Error during weather tool call in flow:", e);
-                finalResponseText += `\n\n(Aizen finds the heavens unreadable at this moment.)`;
+                textResponseFromLLM += `\n\n(Aizen finds the heavens unreadable at this moment.)`;
             }
         }
       }
     }
     
+    const finalTextContent = textResponseFromLLM.trim();
+    let responseTextToShow: string;
+
+    if (finalTextContent) {
+      responseTextToShow = finalTextContent;
+    } else if (finalToolGeneratedImageUrl) {
+      // If no text from LLM or tools, but an image was generated
+      responseTextToShow = `A vision appears... (regarding: ${finalToolGeneratedImagePrompt || 'your request'})`;
+    } else {
+      // Fallback if no text and no image
+      responseTextToShow = "Aizen remains silent, lost in thought.";
+    }
+    
     return {
-      response: finalResponseText,
-      imageUrl: generatedImageUrl,
-      imagePrompt: usedImagePrompt,
+      response: responseTextToShow,
+      imageUrl: finalToolGeneratedImageUrl, // Use the image URL from our tool execution
+      imagePrompt: finalToolGeneratedImagePrompt, // Use the image prompt from our tool execution
     };
   }
 );
+
