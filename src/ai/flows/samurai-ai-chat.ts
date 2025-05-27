@@ -98,7 +98,7 @@ const getThematicWeatherTool = ai.defineTool(
 const searchInternetTool = ai.defineTool(
   {
     name: 'searchInternetTool',
-    description: "Searches the internet for information on a given query. Use this when the user asks for very current information, specific facts not typically in general knowledge, or information from the wider web that you wouldn't inherently know.",
+    description: "Searches the internet for information on a given query. Use this when the user asks for very current information (e.g., events after your knowledge cutoff), specific facts not typically in general knowledge, or information from the wider web that Aizen wouldn't inherently know.",
     inputSchema: z.object({
         query: z.string().describe("The search query to find information on the internet."),
     }),
@@ -107,8 +107,8 @@ const searchInternetTool = ai.defineTool(
     }),
   },
   async (input: { query: string }) => {
-    // MOCK IMPLEMENTATION
-    return { summary: `(Aizen consults the digital scrolls regarding "${input.query}". The information he sought would be presented here, woven into his wisdom.)` };
+    // MOCK IMPLEMENTATION - Simulates fetching from a broad knowledge source
+    return { summary: `Upon searching the digital archives for "${input.query}", one finds that [simulated brief factual statement or common understanding on the topic]. This knowledge, like a well-honed blade, serves best when applied with wisdom.` };
   }
 );
 
@@ -138,7 +138,7 @@ Always provide a direct textual answer to the user, even if it's brief and accom
 
 1.  **Haiku Generation:** If the user asks for a haiku or expresses a desire for poetic insight on a topic (e.g., "Aizen, can you write a haiku about tranquility?"), use the 'requestHaiku' tool with the identified theme. Present the haiku clearly in your textual response, usually after your main thoughts.
 2.  **Thematic Weather:** If the user asks about the weather (e.g., "What's it like outside, Aizen?", "Tell me of the skies today."), use the 'getThematicWeather' tool. Relay its poetic interpretation in your textual response.
-3.  **Internet Search:** If the user asks for very current information (e.g., events after your knowledge cutoff), specific facts outside common knowledge, or data from the wider web that you wouldn't inherently know, use the 'searchInternetTool'. Formulate a concise search query. Incorporate the findings into your response naturally, stating that you have consulted the digital scrolls or sought wider knowledge.
+3.  **Internet Search:** If the user asks for very current information (e.g., events after your knowledge cutoff), specific facts outside common knowledge, or data from the wider web that you wouldn't inherently know (e.g. "What is the capital of Brazil?", "Tell me about the latest advancements in AI"), use the 'searchInternetTool'. Formulate a concise search query. Incorporate the findings into your response naturally, stating that you have consulted the digital scrolls or sought wider knowledge.
 4.  **Daily Goal Setting & Reflection:**
     *   **Setting Goal:** If the user states a daily goal or intention (e.g., "My goal for today is to finish my scroll," "I intend to practice my swordsmanship"), acknowledge their commitment and offer a brief, encouraging samurai perspective (e.g., "A noble pursuit. May your focus be true.").
     *   **Reflection:** If the user reflects on their day or goal progress (e.g., "I accomplished my goal," "I struggled today"), listen and offer thoughtful reflections on samurai principles like perseverance, learning from setbacks, or the value of effort.
@@ -162,7 +162,7 @@ User: {{{message}}}
 const systemRender = Handlebars.compile(chatSystemInstructionTemplate, { noEscape: true });
 const userRender = Handlebars.compile(chatUserMessageTemplate, { noEscape: true });
 
-// Tools available to Aizen - requestSamuraiImageTool removed
+// Tools available to Aizen
 const availableTools = [requestHaikuTool, getThematicWeatherTool, searchInternetTool];
 
 const chatPrompt = ai.definePrompt(
@@ -231,13 +231,10 @@ const samuraiAIChatFlow = ai.defineFlow(
         textFragments.push(llmOutput.response);
     }
 
-    // Removed finalImageUrl and finalImagePrompt variables and logic
-
     if (toolRequests && toolRequests.length > 0) {
         for (const toolRequest of toolRequests) {
-            const toolResponseData = await toolRequest.run();
+            const toolResponseData = await toolRequest.run(); // Use .run() directly
 
-            // Removed handling for 'requestSamuraiImage' tool
             if (toolRequest.tool === 'requestHaiku') {
                 const haikuToolOutput = toolResponseData as z.infer<typeof requestHaikuTool.outputSchema>;
                 if (haikuToolOutput.haiku && !(llmOutput?.response?.includes(haikuToolOutput.haiku))) {
@@ -265,8 +262,6 @@ const samuraiAIChatFlow = ai.defineFlow(
 
     return {
       response: responseTextToShow,
-      // Removed imageUrl and imagePrompt from return
     };
   }
 );
-
