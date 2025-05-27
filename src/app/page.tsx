@@ -6,20 +6,26 @@ import { samuraiAIChat, type SamuraiAIChatInput, type SamuraiAIChatOutput } from
 import { getDailyWisdom, type GetWisdomInput, type GetWisdomOutput } from "@/ai/flows/get-daily-wisdom";
 import { AizenChatWindow } from "@/components/aizen/AizenChatWindow";
 import { AizenChatInput } from "@/components/aizen/AizenChatInput";
+import { DailyWisdomDisplay } from "@/components/aizen/DailyWisdomDisplay";
 import type { Message } from "@/components/aizen/AizenChatMessage";
 import { useToast } from "@/hooks/use-toast";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { v4 as uuidv4 } from 'uuid';
 import { getLocalStorageItem, setLocalStorageItem } from "@/lib/localStorageUtils";
+import { isToday, parseISO } from 'date-fns';
+
 
 const AIZEN_CHAT_HISTORY_KEY = 'aizen_chat_history';
-const CHAT_HISTORY_CONTEXT_LENGTH = 5; // Number of previous messages to send for context
+const DAILY_WISDOM_KEY = 'aizen_daily_wisdom';
+const LAST_WISDOM_FETCH_DATE_KEY = 'aizen_last_wisdom_fetch_date';
+const CHAT_HISTORY_CONTEXT_LENGTH = 5;
 
 export default function AizenCompanionPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [dailyWisdomText, setDailyWisdomText] = useState<string | null>(null);
   const { toast } = useToast();
   const isInitialMount = useRef(true);
 
@@ -44,46 +50,89 @@ export default function AizenCompanionPage() {
     setTtsEnabled,
   } = useSpeechSynthesis();
 
-  // Load chat history from local storage on initial mount
+  const fetchAndSetDailyWisdom = useCallback(async (forceRefresh: boolean = false) => {
+    const lastFetchDateStr = getLocalStorageItem<string | null>(LAST_WISDOM_FETCH_DATE_KEY, null);
+    const storedWisdom = getLocalStorageItem<string | null>(DAILY_WISDOM_KEY, null);
+
+    if (storedWisdom && lastFetchDateStr && isToday(parseISO(lastFetchDateStr)) && !forceRefresh) {
+      setDailyWisdomText(storedWisdom);
+      return;
+    }
+
+    // If forcing refresh or old wisdom, show a temporary loading state for wisdom
+    if(forceRefresh) setDailyWisdomText("Aizen is seeking new enlightenment...");
+
+
+    try {
+      const wisdomInput: GetWisdomInput = {};
+      const wisdomOutput: GetWisdomOutput = await getDailyWisdom(wisdomInput);
+      setDailyWisdomText(wisdomOutput.wisdom);
+      setLocalStorageItem(DAILY_WISDOM_KEY, wisdomOutput.wisdom);
+      setLocalStorageItem(LAST_WISDOM_FETCH_DATE_KEY, new Date().toISOString());
+      if (forceRefresh) { // Only speak if it was a manual refresh action
+         if (ttsEnabled && isSpeechSynthesisSupported) {
+          speak(wisdomOutput.wisdom);
+        }
+        toast({ title: "Aizen's Wisdom", description: "A fresh insight has been shared." });
+      }
+    } catch (error) {
+      console.error("Error getting daily wisdom from Aizen:", error);
+      const errorMessage = "Aizen's wisdom is elusive at this moment. The scrolls are blank.";
+      setDailyWisdomText(errorMessage); // Show error in the wisdom display
+      if (forceRefresh) {
+        toast({
+          title: "Wisdom Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    }
+  }, [toast, ttsEnabled, isSpeechSynthesisSupported, speak]);
+
+  useEffect(() => {
+    fetchAndSetDailyWisdom();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Fetch on initial mount
+
   useEffect(() => {
     const storedMessages = getLocalStorageItem<Message[] | null>(AIZEN_CHAT_HISTORY_KEY, null);
     if (storedMessages) {
-      // Dates are stored as strings, convert them back to Date objects
       const parsedMessages = storedMessages.map(msg => ({
         ...msg,
         timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
       }));
       setMessages(parsedMessages);
     }
-    isInitialMount.current = false; // Mark initial mount as complete
+    isInitialMount.current = false;
   }, []);
 
-  // Save chat history to local storage whenever messages change (except on initial mount from empty)
   useEffect(() => {
-    if (!isInitialMount.current && messages.length > 0) {
-       setLocalStorageItem(AIZEN_CHAT_HISTORY_KEY, messages);
-    } else if (!isInitialMount.current && messages.length === 0) {
-        // If messages are cleared, clear local storage too
-        setLocalStorageItem(AIZEN_CHAT_HISTORY_KEY, []);
+    if (!isInitialMount.current) {
+      setLocalStorageItem(AIZEN_CHAT_HISTORY_KEY, messages);
     }
   }, [messages]);
 
-
-  // Update input field with voice transcript
   useEffect(() => {
     if (voiceTranscript) {
       setInputValue(voiceTranscript);
     }
   }, [voiceTranscript]);
   
-  // Automatically send message when recording stops and there's a transcript
   useEffect(() => {
     if (!isRecording && voiceTranscript.trim() !== "") {
       handleSendMessage(voiceTranscript);
-      setVoiceTranscript(""); // Clear transcript after sending
+      setVoiceTranscript("");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecording]);
+
+  const handleUpdateMessage = useCallback((messageId: string, updates: Partial<Message>) => {
+    setMessages(prevMessages =>
+      prevMessages.map(msg =>
+        msg.id === messageId ? { ...msg, ...updates } : msg
+      )
+    );
+  }, []);
 
   const handleSendMessage = useCallback(async (textToSend?: string) => {
     const currentMessageText = (textToSend || inputValue).trim();
@@ -98,9 +147,20 @@ export default function AizenCompanionPage() {
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
+    
+    const thinkingMessageId = uuidv4();
+    const thinkingMessage: Message = {
+        id: thinkingMessageId,
+        sender: 'aizen',
+        text: "...",
+        timestamp: new Date(),
+        isLoadingPlaceholder: true,
+    };
+    setMessages(prev => [...prev, thinkingMessage]);
 
     try {
       const historyForAI = messages
+        .filter(msg => !msg.isLoadingPlaceholder) // Exclude previous thinking messages from history
         .slice(-CHAT_HISTORY_CONTEXT_LENGTH)
         .map(msg => ({ sender: msg.sender, text: msg.text }));
       
@@ -111,12 +171,16 @@ export default function AizenCompanionPage() {
       const aiOutput: SamuraiAIChatOutput = await samuraiAIChat(aiInput);
       
       const aizenMessage: Message = {
-        id: uuidv4(),
+        id: uuidv4(), // New ID for the actual response
         sender: 'aizen',
         text: aiOutput.response,
         timestamp: new Date(),
+        imageUrl: aiOutput.imageUrl,
+        imagePrompt: aiOutput.imagePrompt,
       };
-      setMessages(prev => [...prev, aizenMessage]);
+      // Replace thinking message with actual response
+      setMessages(prev => prev.map(m => m.id === thinkingMessageId ? aizenMessage : m));
+
 
       if (ttsEnabled && isSpeechSynthesisSupported) {
         speak(aiOutput.response);
@@ -124,94 +188,57 @@ export default function AizenCompanionPage() {
 
     } catch (error) {
       console.error("Error communicating with Aizen AI:", error);
+      const errorText = error instanceof Error && error.message.includes("blocked") 
+        ? "Aizen senses a sensitive topic. Perhaps another path of inquiry?"
+        : "Aizen is momentarily lost in the echoes of the void. Please try rephrasing.";
+      
       toast({
-        title: "Error",
-        description: "Aizen is contemplating... (Failed to get response). Please try again.",
+        title: "Aizen's Contemplation",
+        description: errorText,
         variant: "destructive",
       });
        const errorMessage: Message = {
         id: uuidv4(),
         sender: 'aizen',
-        text: "Forgive my silence, a momentary disturbance in the ether. Please try rephrasing.",
+        text: errorText,
         timestamp: new Date(),
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => prev.map(m => m.id === thinkingMessageId ? errorMessage : m));
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // This will remove the generic skeleton loader from ChatWindow if it's still active
     }
   }, [inputValue, messages, speak, ttsEnabled, isSpeechSynthesisSupported, toast]);
 
   const handleClearChat = useCallback(() => {
     setMessages([]);
-    // Local storage will be cleared by the useEffect listening to messages
     toast({
       title: "Chat Cleared",
       description: "Your conversation with Aizen has been cleared.",
     });
   }, [toast]);
 
-  const handleGetWisdom = useCallback(async () => {
-    setIsLoading(true);
-    const thinkingMessage: Message = {
-      id: uuidv4(),
-      sender: 'aizen', // Placeholder, looks like Aizen is typing
-      text: "...", // Indicate loading or thinking
-      timestamp: new Date(),
-      isLoadingPlaceholder: true, // Special flag for temporary message
-    };
-    // Add a temporary "Aizen is thinking..." message
-    setMessages(prev => [...prev, thinkingMessage]);
-
-    try {
-      const wisdomInput: GetWisdomInput = {}; // Empty input for now
-      const wisdomOutput: GetWisdomOutput = await getDailyWisdom(wisdomInput);
-      
-      const wisdomMessage: Message = {
-        id: uuidv4(),
-        sender: 'aizen',
-        text: wisdomOutput.wisdom,
-        timestamp: new Date(),
-      };
-      // Replace the thinking message with the actual wisdom
-      setMessages(prev => [...prev.filter(m => !m.isLoadingPlaceholder), wisdomMessage]);
-
-
-      if (ttsEnabled && isSpeechSynthesisSupported) {
-        speak(wisdomOutput.wisdom);
-      }
-
-    } catch (error) {
-      console.error("Error getting wisdom from Aizen:", error);
-      toast({
-        title: "Error",
-        description: "Aizen's wisdom is elusive at this moment. Please try again.",
-        variant: "destructive",
-      });
-      // Remove the thinking message if an error occurs
-      setMessages(prev => prev.filter(m => !m.isLoadingPlaceholder));
-       const errorMessage: Message = {
-        id: uuidv4(),
-        sender: 'aizen',
-        text: "My apologies, the path to wisdom is currently obscured.",
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [speak, ttsEnabled, isSpeechSynthesisSupported, toast]);
+  const handleGetWisdomButton = useCallback(async () => {
+    // This button now primarily serves to refresh the wisdom,
+    // or show a loading state if initial fetch is slow.
+    // The actual display is handled by DailyWisdomDisplay.
+    setIsLoading(true); // General loading state for this action
+    await fetchAndSetDailyWisdom(true); // force refresh
+    setIsLoading(false);
+  }, [fetchAndSetDailyWisdom]);
 
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden">
+      <DailyWisdomDisplay wisdom={dailyWisdomText} />
       <div className="flex-grow flex flex-col overflow-hidden">
-        <AizenChatWindow messages={messages} isLoading={isLoading} />
+        <AizenChatWindow messages={messages} isLoading={false} onUpdateMessage={handleUpdateMessage} /> 
+        {/* isLoading prop to AizenChatWindow might be redundant now if using placeholder messages */}
       </div>
       <AizenChatInput
         inputValue={inputValue}
         onInputChange={setInputValue}
         onSendMessage={() => handleSendMessage()}
-        isLoading={isLoading}
+        isLoading={isLoading} // This isLoading is for the input field and send button
         isRecording={isRecording}
         startRecording={startListening}
         stopRecording={stopListening}
@@ -224,7 +251,7 @@ export default function AizenCompanionPage() {
         onTtsToggle={setTtsEnabled}
         isSpeechSynthesisSupported={isSpeechSynthesisSupported}
         onClearChat={handleClearChat}
-        onGetWisdom={handleGetWisdom}
+        onGetWisdom={handleGetWisdomButton} // Renamed for clarity
       />
     </main>
   );

@@ -1,3 +1,4 @@
+/* Ensure Tailwind directives are correctly placed */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -104,6 +105,36 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* Basic Markdown Prose styling for ReactMarkdown */
+  .prose {
+    @apply text-foreground;
+  }
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+    @apply text-foreground font-semibold;
+  }
+  .prose a {
+    @apply text-accent hover:text-accent/80 underline;
+  }
+  .prose strong {
+    @apply font-semibold text-foreground;
+  }
+  .prose em {
+    @apply italic;
+  }
+  .prose blockquote {
+    @apply border-l-4 border-muted pl-4 italic text-muted-foreground;
+  }
+  .prose hr {
+    @apply border-border my-4;
+  }
+  /* For prose-invert if you need specific dark mode overrides with prose plugin */
+  .prose-invert { 
+    /* Example:
+    --tw-prose-body: theme(colors.gray[300]);
+    --tw-prose-headings: theme(colors.white);
+    --tw-prose-links: theme(colors.accent[400]);
+    */
   }
 }
 

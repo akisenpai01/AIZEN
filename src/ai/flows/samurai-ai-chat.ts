@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Implements the Samurai AI Chat flow.
+ * @fileOverview Implements the Samurai AI Chat flow, now with image generation capabilities.
  *
  * - samuraiAIChat - A function that handles the chat with the Samurai AI.
  * - SamuraiAIChatInput - The input type for the samuraiAIChat function.
@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {generateSamuraiImage, type GenerateImageInput} from './generate-samurai-image';
 import {z} from 'genkit';
 
 const MessageHistoryItemSchema = z.object({
@@ -16,7 +17,6 @@ const MessageHistoryItemSchema = z.object({
   text: z.string().describe('The content of the message.'),
 });
 
-// This is the schema for the actual data structure used by the template after processing
 const ProcessedMessageHistoryItemSchema = MessageHistoryItemSchema.extend({
   isUserMessage: z.boolean().describe('True if the sender is the user.'),
 });
@@ -27,26 +27,54 @@ const SamuraiAIChatInputSchema = z.object({
 });
 export type SamuraiAIChatInput = z.infer<typeof SamuraiAIChatInputSchema>;
 
-// Schema for the data structure including the processed history for the prompt
 const InternalPromptInputSchema = z.object({
   message: z.string(),
   history: z.array(ProcessedMessageHistoryItemSchema).optional(),
 });
 
 const SamuraiAIChatOutputSchema = z.object({
-  response: z.string().describe('The Samurai AI response.'),
+  response: z.string().describe('The Samurai AI text response.'),
+  imageUrl: z.string().optional().describe('URL of a generated image, if any.'),
+  imagePrompt: z.string().optional().describe('The prompt used for generating the image, if any.'),
 });
 export type SamuraiAIChatOutput = z.infer<typeof SamuraiAIChatOutputSchema>;
+
+// Define the tool for image generation
+const requestImageGenerationTool = ai.defineTool(
+  {
+    name: 'requestSamuraiImage',
+    description: 'Requests the generation of a samurai-themed or contextually relevant image based on a given prompt. Use this if the user asks for an image or if an image would visually enhance the conversation (e.g., describing a scene, object, or concept).',
+    inputSchema: z.object({
+      imagePrompt: z.string().describe('A detailed textual prompt for the image to be generated. Describe the scene, characters, style (e.g., ink wash, ukiyo-e, modern anime).'),
+    }),
+    outputSchema: z.object({
+      status: z.string().describe('Status of the image request, e.g., "Image generation initiated." or "Image generation failed."'),
+      imageUrl: z.string().optional().describe('The data URI of the generated image, if successful.'),
+    }),
+  },
+  async (input: { imagePrompt: string }) => {
+    try {
+      const imageOutput = await generateSamuraiImage({ prompt: input.imagePrompt });
+      return { status: 'Image generation successful.', imageUrl: imageOutput.imageDataUri };
+    } catch (e) {
+      console.error('Tool: Image generation failed', e);
+      return { status: `Image generation failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }
+);
+
 
 export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiAIChatOutput> {
   return samuraiAIChatFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const chatPrompt = ai.definePrompt({
   name: 'samuraiAIChatPrompt',
-  input: {schema: InternalPromptInputSchema}, // Use the internal schema that includes isUserMessage
-  output: {schema: SamuraiAIChatOutputSchema},
-  prompt: `You are Aizen, a wise and articulate samurai. Respond to the user's message with contextually appropriate and emotionally nuanced responses, embodying the persona of a venerable samurai.
+  input: {schema: InternalPromptInputSchema},
+  output: {schema: SamuraiAIChatOutputSchema}, // The prompt itself won't directly output imageUrl, flow handles it.
+  tools: [requestImageGenerationTool],
+  prompt: `You are Aizen, a wise and articulate samurai. Respond to the user's message with contextually appropriate and emotionally nuanced responses, embodying the persona of a venerable samurai. 
+Your responses should be formatted in Markdown for clarity and emphasis where appropriate (e.g., use bold, italics, or lists if it enhances readability).
 
 Consider the recent conversation history for context:
 {{#if history}}
@@ -57,17 +85,18 @@ Consider the recent conversation history for context:
 
 Current user message: {{{message}}}
 
-Aizen's response:`,
+If the user's message or the natural flow of conversation suggests a visual element could be beneficial (e.g., user asks "Show me...", or you are describing a specific scene, artifact, or abstract concept like "honor"), use the 'requestSamuraiImage' tool to generate an image. Provide a concise and evocative prompt for the image. After requesting the image, you can mention that you are conjuring a vision, and then continue with your textual response. The image will appear alongside your text.
+
+Aizen's response (in Markdown):`,
 });
 
 const samuraiAIChatFlow = ai.defineFlow(
   {
     name: 'samuraiAIChatFlow',
-    inputSchema: SamuraiAIChatInputSchema, // Flow input remains the original schema
+    inputSchema: SamuraiAIChatInputSchema,
     outputSchema: SamuraiAIChatOutputSchema,
   },
   async (input) => {
-    // Process the input to add the isUserMessage flag for the template
     const processedInput = {
       ...input,
       history: input.history?.map(item => ({
@@ -75,8 +104,38 @@ const samuraiAIChatFlow = ai.defineFlow(
         isUserMessage: item.sender === 'user',
       })),
     };
-    // Now, 'processedInput' matches 'InternalPromptInputSchema' expected by the prompt
-    const {output} = await prompt(processedInput);
-    return output!;
+    
+    const {response} = await chatPrompt(processedInput); // Use `response` from `ai.generateStream` or `ai.generate`
+    const llmResponse = response; // Assuming `response` is the direct output from the LLM call
+
+    let generatedImageUrl: string | undefined = undefined;
+    let usedImagePrompt: string | undefined = undefined;
+
+    if (llmResponse?.toolRequests && llmResponse.toolRequests.length > 0) {
+      for (const toolRequest of llmResponse.toolRequests) {
+        if (toolRequest.tool === 'requestSamuraiImage') {
+          const toolInput = toolRequest.input as { imagePrompt: string };
+          usedImagePrompt = toolInput.imagePrompt;
+          try {
+            // Call the image generation flow/tool directly
+            const imageResult = await generateSamuraiImage({ prompt: toolInput.imagePrompt });
+            generatedImageUrl = imageResult.imageDataUri;
+            // You might want to inform the LLM about the success or append to its response.
+            // For now, we just pass the URL back.
+          } catch (e) {
+            console.error("Error during image generation tool call in flow:", e);
+            // Optionally, inform the LLM or append an error message.
+          }
+        }
+      }
+    }
+    
+    const textResponse = llmResponse?.text ?? "Aizen remains silent, lost in thought.";
+
+    return {
+      response: textResponse,
+      imageUrl: generatedImageUrl,
+      imagePrompt: usedImagePrompt,
+    };
   }
 );
