@@ -15,23 +15,12 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { v4 as uuidv4 } from 'uuid';
 import { getLocalStorageItem, setLocalStorageItem } from "@/lib/localStorageUtils";
+import type { Theme } from '@/app/RootLayoutClientBoundary'; // Import Theme type from RootLayoutClientBoundary
+import { availableThemes, AIZEN_THEME_KEY } from '@/app/RootLayoutClientBoundary'; // Import availableThemes from RootLayoutClientBoundary
+
 
 const AIZEN_CHAT_HISTORY_KEY = 'aizen_chat_history';
 const CHAT_HISTORY_CONTEXT_LENGTH = 10; 
-const AIZEN_THEME_KEY = 'aizen_theme_name'; 
-
-export interface Theme {
-  name: string;
-  bgImage: string;
-  dataAiHint: string;
-}
-
-const availableThemes: Theme[] = [
-  { name: 'Default', bgImage: "https://media-hosting.imagekit.io/7e8c99534f4d4798/wp9226062-4k-samurai-mobile-wallpapers.jpg?Expires=1840948638&Key-Pair-Id=K2ZIVPTIP2VGHC&Signature=r62I1Q4W4YHDy7eiAKqwWodbPFzVNXXwioylagBQi16o1rzM9Y6dcqUPdEi3RT-sYxwAiJdHM74NsQs-Uvb4lM7lUKxM9ZzFbZOMaz9rrmV04KHyqrugDwVIQTOC7C95kY90o42Gd1lmMUznk-27FKLdFA1w82wzZFl0NbXnLu6~E2IIDbm391RQqbef8~TLw2rIRWM6BG0Efgjh4T34zIsevcrRGcsj~LoNgNPR12Kuk6VotvanRGnuSwBoMXj7mAnxLPwAafsbgi~rUxv-mWElzAlUD90cerywZme6rtLYp5g9nQB7e-YWpa3poyalPdIrIB9A-0YyoP8pyWKyow__", dataAiHint: 'samurai landscape' },
-  { name: 'Serene Garden', bgImage: 'https://placehold.co/1920x1080/A9A9A9/FFFFFF.png?text=Serene+Garden', dataAiHint: 'zen garden' },
-  { name: 'Dojo Training', bgImage: 'https://placehold.co/1920x1080/2F4F4F/FFFFFF.png?text=Dojo+Training', dataAiHint: 'dojo interior' },
-  { name: 'Moonlit Night', bgImage: 'https://placehold.co/1920x1080/483D8B/FFFFFF.png?text=Moonlit+Night', dataAiHint: 'moon night' },
-];
 
 
 export default function AizenCompanionPage() {
@@ -75,8 +64,12 @@ export default function AizenCompanionPage() {
       setMessages(parsedMessages);
     }
 
-    const storedThemeName = getLocalStorageItem<string | null>(AIZEN_THEME_KEY, availableThemes[0].name);
-    setSelectedThemeName(storedThemeName || availableThemes[0].name);
+    const storedThemeName = getLocalStorageItem<string | null>(AIZEN_THEME_KEY, null); // Don't set default here, RootLayoutClientBoundary handles it
+    if (storedThemeName && availableThemes.some(t => t.name === storedThemeName)) {
+      setSelectedThemeName(storedThemeName);
+    } else {
+      setSelectedThemeName(availableThemes[0].name); // Fallback if not found or invalid
+    }
     
     isInitialMount.current = false;
   }, []);
@@ -149,7 +142,7 @@ export default function AizenCompanionPage() {
       const historyForAI = messages
         .filter(msg => !msg.isLoadingPlaceholder) 
         .slice(-CHAT_HISTORY_CONTEXT_LENGTH)
-        .map(msg => ({ sender: msg.sender, text: msg.text }));
+        .map(msg => ({ sender: msg.sender as 'user' | 'aizen', text: msg.text }));
       
       const aiInput: SamuraiAIChatInput = { 
         message: currentMessageText,
@@ -162,11 +155,10 @@ export default function AizenCompanionPage() {
         sender: 'aizen',
         text: aiOutput.response,
         timestamp: new Date(),
-        imageUrl: aiOutput.imageUrl,
-        imagePrompt: aiOutput.imagePrompt,
+        imageUrl: aiOutput.imageUrl || undefined,
+        imagePrompt: aiOutput.imagePrompt || undefined,
       };
       
-      // Replace the thinking message with Aizen's actual response using handleUpdateMessage
       handleUpdateMessage(thinkingMessageId, aizenMessage);
 
 
@@ -200,7 +192,6 @@ export default function AizenCompanionPage() {
         text: errorText,
         timestamp: new Date(),
       };
-      // Replace the thinking message with an error message
       handleUpdateMessage(thinkingMessageId, errorMessage);
     } finally {
       setIsLoading(false); 
@@ -209,7 +200,7 @@ export default function AizenCompanionPage() {
 
   const handleClearChat = useCallback(() => {
     setMessages([]);
-    setLocalStorageItem(AIZEN_CHAT_HISTORY_KEY, []); // Also clear from local storage
+    setLocalStorageItem(AIZEN_CHAT_HISTORY_KEY, []); 
     toast({
       title: "Chat Cleared",
       description: "Your conversation with Aizen has been cleared.",
@@ -217,15 +208,14 @@ export default function AizenCompanionPage() {
   }, [toast]);
 
   const handleThemeChange = (themeName: string) => {
-    setSelectedThemeName(themeName);
-    setLocalStorageItem(AIZEN_THEME_KEY, themeName);
-    const selectedTheme = availableThemes.find(t => t.name === themeName);
-    if (selectedTheme && typeof window !== 'undefined') {
-        const bgElement = document.getElementById('app-background');
-        if (bgElement) {
-            bgElement.style.backgroundImage = `url('${selectedTheme.bgImage}')`;
-            bgElement.setAttribute('data-ai-hint', selectedTheme.dataAiHint);
-        }
+    const newSelectedTheme = availableThemes.find(t => t.name === themeName) || availableThemes[0];
+    setSelectedThemeName(newSelectedTheme.name);
+    setLocalStorageItem(AIZEN_THEME_KEY, newSelectedTheme.name);
+    // The RootLayoutClientBoundary will pick up the change from localStorage via its own useEffect or event listener.
+    // For immediate visual feedback without waiting for RootLayoutClientBoundary's sync:
+    if (typeof window !== 'undefined') {
+        const bgEvent = new CustomEvent('aizenThemeChange', { detail: { themeName: newSelectedTheme.name } });
+        window.dispatchEvent(bgEvent);
     }
   };
 
@@ -240,6 +230,7 @@ export default function AizenCompanionPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 pr-10 bg-input/70 border-border/50 focus:ring-accent/50 placeholder:text-muted-foreground/70"
+            suppressHydrationWarning={true}
           />
           {searchTerm && (
             <Button
@@ -247,6 +238,7 @@ export default function AizenCompanionPage() {
               size="icon"
               className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 text-muted-foreground hover:text-accent"
               onClick={() => setSearchTerm("")}
+              suppressHydrationWarning={true}
             >
               <XCircle className="h-4 w-4" />
             </Button>
@@ -254,7 +246,6 @@ export default function AizenCompanionPage() {
         </div>
       </div>
       <div className="flex-grow flex flex-col overflow-hidden pt-2">
-        {/* Pass handleUpdateMessage to AizenChatWindow */}
         <AizenChatWindow messages={displayedMessages} isLoading={isLoading} onUpdateMessage={handleUpdateMessage} /> 
       </div>
       <AizenChatInput
@@ -281,3 +272,4 @@ export default function AizenCompanionPage() {
     </main>
   );
 }
+
