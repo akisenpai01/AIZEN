@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -232,7 +233,7 @@ const samuraiAIChatFlow = ai.defineFlow(
         },
     });
 
-    const llmOutput = genkitResponse.output(); // This should be SamuraiAIChatOutput | undefined
+    const llmOutput = genkitResponse.output; // This should be SamuraiAIChatOutput | undefined
     const toolRequests = genkitResponse.toolRequests;
 
     const textFragments: string[] = [];
@@ -286,3 +287,4 @@ const samuraiAIChatFlow = ai.defineFlow(
     };
   }
 );
+
