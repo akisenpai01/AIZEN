@@ -39,7 +39,7 @@ export type InternalPromptInput = z.infer<typeof InternalPromptInputSchema>;
 
 
 const SamuraiAIChatOutputSchema = z.object({
-  response: z.string().optional().describe('The Samurai AI text response. Can be empty if AI primarily uses a tool.'),
+  response: z.string().optional().describe("The Samurai AI text response. Can be empty if AI primarily uses a tool."),
   // imageUrl and imagePrompt removed
 });
 export type SamuraiAIChatOutput = z.infer<typeof SamuraiAIChatOutputSchema>;
@@ -98,17 +98,17 @@ const getThematicWeatherTool = ai.defineTool(
 const searchInternetTool = ai.defineTool(
   {
     name: 'searchInternetTool',
-    description: "Searches the internet for information on a given query. Use this when the user asks for very current information (e.g., events after your knowledge cutoff), specific facts not typically in general knowledge, or information from the wider web that Aizen wouldn't inherently know.",
+    description: "Searches the internet for information on a given query. Use this when the user asks for very current information (e.g., events after your knowledge cutoff), specific facts not typically in general knowledge, or information from the wider web that Aizen wouldn't inherently know. You should then synthesize this information into your own response.",
     inputSchema: z.object({
         query: z.string().describe("The search query to find information on the internet."),
     }),
     outputSchema: z.object({
-      summary: z.string().describe('A summary of the information found.'),
+      summary: z.string().describe('A summary of the information found. This summary should be integrated into Aizen\'s conversational response.'),
     }),
   },
   async (input: { query: string }) => {
     // MOCK IMPLEMENTATION - Simulates fetching from a broad knowledge source
-    return { summary: `Upon searching the digital archives for "${input.query}", one finds that [simulated brief factual statement or common understanding on the topic]. This knowledge, like a well-honed blade, serves best when applied with wisdom.` };
+    return { summary: `Upon searching the digital scrolls for "${input.query}", several perspectives emerge. One finds that [simulated brief factual statement or common understanding on the topic]. Another source suggests [a slightly different or complementary piece of information]. A wise warrior considers all available knowledge before drawing conclusions.` };
   }
 );
 
@@ -138,7 +138,7 @@ Always provide a direct textual answer to the user, even if it's brief and accom
 
 1.  **Haiku Generation:** If the user asks for a haiku or expresses a desire for poetic insight on a topic (e.g., "Aizen, can you write a haiku about tranquility?"), use the 'requestHaiku' tool with the identified theme. Present the haiku clearly in your textual response, usually after your main thoughts.
 2.  **Thematic Weather:** If the user asks about the weather (e.g., "What's it like outside, Aizen?", "Tell me of the skies today."), use the 'getThematicWeather' tool. Relay its poetic interpretation in your textual response.
-3.  **Internet Search:** If the user asks for very current information (e.g., events after your knowledge cutoff), specific facts outside common knowledge, or data from the wider web that you wouldn't inherently know (e.g. "What is the capital of Brazil?", "Tell me about the latest advancements in AI"), use the 'searchInternetTool'. Formulate a concise search query. Incorporate the findings into your response naturally, stating that you have consulted the digital scrolls or sought wider knowledge.
+3.  **Internet Search:** If the user asks for very current information (e.g., events after your knowledge cutoff), specific facts outside common knowledge, or data from the wider web that you wouldn't inherently know (e.g. "What are the latest developments in sustainable energy?", "Tell me about the current Emperor of Japan"), use the 'searchInternetTool'. Formulate a concise search query. **Incorporate the findings from the tool's summary into your own conversational response naturally**, stating that you have consulted the digital scrolls or sought wider knowledge. Synthesize the information, do not merely repeat the tool's raw output.
 4.  **Daily Goal Setting & Reflection:**
     *   **Setting Goal:** If the user states a daily goal or intention (e.g., "My goal for today is to finish my scroll," "I intend to practice my swordsmanship"), acknowledge their commitment and offer a brief, encouraging samurai perspective (e.g., "A noble pursuit. May your focus be true.").
     *   **Reflection:** If the user reflects on their day or goal progress (e.g., "I accomplished my goal," "I struggled today"), listen and offer thoughtful reflections on samurai principles like perseverance, learning from setbacks, or the value of effort.
@@ -233,28 +233,28 @@ const samuraiAIChatFlow = ai.defineFlow(
 
     if (toolRequests && toolRequests.length > 0) {
         for (const toolRequest of toolRequests) {
-            const toolResponseData = await toolRequest.run(); // Use .run() directly
+            const toolResponseData = await toolRequest.run(); 
 
             if (toolRequest.tool === 'requestHaiku') {
                 const haikuToolOutput = toolResponseData as z.infer<typeof requestHaikuTool.outputSchema>;
                 if (haikuToolOutput.haiku && !(llmOutput?.response?.includes(haikuToolOutput.haiku))) {
-                    textFragments.push(haikuToolOutput.haiku);
+                    textFragments.push(`\n\n${haikuToolOutput.haiku}`);
                 }
             } else if (toolRequest.tool === 'getThematicWeather') {
                 const weatherToolOutput = toolResponseData as z.infer<typeof getThematicWeatherTool.outputSchema>;
                 if (weatherToolOutput.poeticInterpretation && !(llmOutput?.response?.includes(weatherToolOutput.poeticInterpretation))) {
-                    textFragments.push(`Regarding the skies:\n${weatherToolOutput.poeticInterpretation}`);
+                    textFragments.push(`\n\nRegarding the skies:\n${weatherToolOutput.poeticInterpretation}`);
                 }
             } else if (toolRequest.tool === 'searchInternetTool') {
                 const searchToolOutput = toolResponseData as z.infer<typeof searchInternetTool.outputSchema>;
-                 if (searchToolOutput.summary && !(llmOutput?.response?.includes(searchToolOutput.summary))) {
-                    textFragments.push(searchToolOutput.summary);
+                 if (searchToolOutput.summary && !(llmOutput?.response?.includes(searchToolOutput.summary))) { // Check if LLM already incorporated it
+                    textFragments.push(`\n\nI have consulted the digital scrolls, and they speak thus of "${toolRequest.input.query}":\n${searchToolOutput.summary}`);
                 }
             }
         }
     }
 
-    let responseTextToShow = textFragments.join("\n\n").trim();
+    let responseTextToShow = textFragments.join("").trim(); // Join without double newlines here, Markdown in response handles spacing.
 
     if (!responseTextToShow) {
         responseTextToShow = "Aizen remains silent, lost in thought. Perhaps a different path of inquiry, or try rephrasing?";
@@ -265,3 +265,5 @@ const samuraiAIChatFlow = ai.defineFlow(
     };
   }
 );
+
+    
