@@ -167,13 +167,15 @@ const systemRender = Handlebars.compile(chatSystemInstructionTemplate, { noEscap
 const userRender = Handlebars.compile(chatUserMessageTemplate, { noEscape: true });
 
 
+// The ai.definePrompt is still useful for defining the schemas and associating them,
+// but we will construct the request to ai.generate() more explicitly in the flow.
 const chatPrompt = ai.definePrompt(
   {
     name: 'samuraiAIChatPrompt',
     input: {schema: InternalPromptInputSchema},
     output: {schema: SamuraiAIChatOutputSchema},
     tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool],
-    config: { // Added safety settings
+    config: { 
         safetySettings: [
             { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
             { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -182,13 +184,18 @@ const chatPrompt = ai.definePrompt(
         ],
     }
   },
-  async (input: InternalPromptInput): Promise<MessageData[]> => {
+  // This prompt function is now primarily for reference or direct invocation if needed,
+  // but samuraiAIChatFlow will construct messages manually for ai.generate.
+  (input: InternalPromptInput): MessageData[] => {
     const systemMessageText = systemRender(input);
     const userMessageText = userRender(input);
 
+    const finalSystemText = (typeof systemMessageText === 'string') ? systemMessageText : '';
+    const finalUserText = (typeof userMessageText === 'string') ? userMessageText : '';
+
     return [
-      {role: 'system', content: [{text: systemMessageText} as Part]},
-      {role: 'user', content: [{text: userMessageText} as Part]},
+      {role: 'system', content: [{text: finalSystemText} as Part]},
+      {role: 'user', content: [{text: finalUserText} as Part]},
     ];
   }
 );
@@ -200,13 +207,36 @@ const samuraiAIChatFlow = ai.defineFlow(
     outputSchema: SamuraiAIChatOutputSchema,
   },
   async (input) => {
-    const genkitResponse = await ai.generate({prompt: chatPrompt, input: input});
+    // Manually render templates and construct messages
+    const systemMessageText = systemRender(input);
+    const userMessageText = userRender(input);
 
-    const llmOutput = genkitResponse.output();
+    const messagesToGenerate: MessageData[] = [
+        {role: 'system', content: [{text: (systemMessageText ?? '')} as Part]},
+        {role: 'user', content: [{text: (userMessageText ?? '')} as Part]},
+    ];
+
+    const genkitResponse = await ai.generate({
+        // The global `ai` object in genkit.ts already defines a default model.
+        // If you need to override it here, you can add: model: 'googleai/gemini-2.0-flash',
+        messages: messagesToGenerate,
+        tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool], // Explicitly pass tools
+        output: { schema: SamuraiAIChatOutputSchema }, // Explicitly pass output schema
+        config: { // Explicitly pass config
+            safetySettings: [
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            ],
+        },
+    });
+
+    const llmOutput = genkitResponse.output(); // This should be SamuraiAIChatOutput | undefined
     const toolRequests = genkitResponse.toolRequests;
 
     const textFragments: string[] = [];
-    if (llmOutput?.response) { // llmOutput.response is now optional
+    if (llmOutput?.response) { 
         textFragments.push(llmOutput.response);
     }
 
@@ -215,26 +245,25 @@ const samuraiAIChatFlow = ai.defineFlow(
 
     if (toolRequests && toolRequests.length > 0) {
         for (const toolRequest of toolRequests) {
-            const toolResponseData = await toolRequest.run();
+            // Use toolRequest.run() to get the typed output directly
+            const toolResponseData = await toolRequest.run(); 
 
             if (toolRequest.tool === 'requestSamuraiImage') {
                 finalImagePrompt = (toolRequest.input as { imagePrompt: string }).imagePrompt;
-                const imageToolOutput = toolResponseData as { status: string; imageUrl?: string };
+                // toolResponseData is already the typed output of the tool
+                const imageToolOutput = toolResponseData as z.infer<typeof requestImageGenerationTool.outputSchema>;
                 if (imageToolOutput.imageUrl) {
                     finalImageUrl = imageToolOutput.imageUrl;
                 } else {
-                    // Always add a note about clouded vision if image generation was attempted but failed
                     textFragments.push(`(Aizen's vision for an image of "${finalImagePrompt}" is momentarily clouded: ${imageToolOutput.status})`);
                 }
             } else if (toolRequest.tool === 'requestHaiku') {
-                const haikuToolOutput = toolResponseData as { haiku: string };
-                // Avoid duplicating if LLM already included it in its primary response
+                const haikuToolOutput = toolResponseData as z.infer<typeof requestHaikuTool.outputSchema>;
                 if (haikuToolOutput.haiku && !(llmOutput?.response?.includes(haikuToolOutput.haiku))) {
                     textFragments.push(haikuToolOutput.haiku);
                 }
             } else if (toolRequest.tool === 'getThematicWeather') {
-                const weatherToolOutput = toolResponseData as { poeticInterpretation: string };
-                 // Avoid duplicating
+                const weatherToolOutput = toolResponseData as z.infer<typeof getThematicWeatherTool.outputSchema>;
                 if (weatherToolOutput.poeticInterpretation && !(llmOutput?.response?.includes(weatherToolOutput.poeticInterpretation))) {
                     textFragments.push(`Regarding the skies:\n${weatherToolOutput.poeticInterpretation}`);
                 }
@@ -247,7 +276,6 @@ const samuraiAIChatFlow = ai.defineFlow(
     if (!responseTextToShow && finalImageUrl) {
         responseTextToShow = `A vision appears... (regarding: ${finalImagePrompt || 'your request'})`;
     } else if (!responseTextToShow && !finalImageUrl) {
-        // This is the fallback that was being triggered.
         responseTextToShow = "Aizen contemplates your words, seeking the right path for his response. Perhaps try rephrasing or a different inquiry?";
     }
 
