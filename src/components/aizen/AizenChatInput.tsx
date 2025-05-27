@@ -1,9 +1,10 @@
+
 // src/components/aizen/AizenChatInput.tsx
 "use client";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Trash2, ScrollText } from "lucide-react";
+import { Send, Trash2 } from "lucide-react"; // Removed ScrollText import
 import { PulsatingMicIcon } from "./PulsatingMicIcon";
 import type { FormEvent } from "react";
 import type { CustomSpeechSynthesisVoice } from "@/hooks/useSpeechSynthesis";
@@ -28,7 +29,7 @@ interface AizenChatInputProps {
   isSpeechSynthesisSupported: boolean;
   // New props
   onClearChat: () => void;
-  onGetWisdom: () => void;
+  // Removed onGetWisdom prop
 }
 
 export function AizenChatInput({
@@ -48,7 +49,7 @@ export function AizenChatInput({
   onTtsToggle,
   isSpeechSynthesisSupported,
   onClearChat,
-  onGetWisdom,
+  // Removed onGetWisdom from destructuring
 }: AizenChatInputProps) {
   
   const handleSubmit = (e: FormEvent) => {
@@ -73,19 +74,7 @@ export function AizenChatInput({
         className="flex items-center gap-2"
         suppressHydrationWarning={true} 
       >
-        <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            onClick={onGetWisdom}
-            disabled={isLoading}
-            className="text-accent hover:bg-accent/20 hover:text-accent"
-            aria-label="Get Wisdom from Aizen"
-            suppressHydrationWarning={true}
-            title="Get Wisdom"
-          >
-            <ScrollText className="h-5 w-5" />
-        </Button>
+        {/* Removed Get Wisdom button */}
         <Input
           type="text"
           placeholder={isRecording ? "Listening..." : "Speak or type your thoughts..."}

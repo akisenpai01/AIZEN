@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { samuraiAIChat, type SamuraiAIChatInput, type SamuraiAIChatOutput } from "@/ai/flows/samurai-ai-chat";
-import { getDailyWisdom, type GetWisdomInput, type GetWisdomOutput } from "@/ai/flows/get-daily-wisdom";
+// Removed getDailyWisdom import
 import { AizenChatWindow } from "@/components/aizen/AizenChatWindow";
 import { AizenChatInput } from "@/components/aizen/AizenChatInput";
 import type { Message } from "@/components/aizen/AizenChatMessage";
@@ -13,12 +13,12 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
 import { v4 as uuidv4 } from 'uuid';
 import { getLocalStorageItem, setLocalStorageItem } from "@/lib/localStorageUtils";
-import { isToday, parseISO } from 'date-fns';
+// Removed date-fns imports as they were only for daily wisdom
+// import { isToday, parseISO } from 'date-fns';
 
 
 const AIZEN_CHAT_HISTORY_KEY = 'aizen_chat_history';
-const DAILY_WISDOM_KEY = 'aizen_daily_wisdom';
-const LAST_WISDOM_FETCH_DATE_KEY = 'aizen_last_wisdom_fetch_date';
+// Removed daily wisdom local storage keys
 const CHAT_HISTORY_CONTEXT_LENGTH = 5; // Keep 5 messages for AI context
 
 export default function AizenCompanionPage() {
@@ -49,49 +49,7 @@ export default function AizenCompanionPage() {
     setTtsEnabled,
   } = useSpeechSynthesis();
 
-  const fetchAndSetDailyWisdom = useCallback(async (forceRefresh: boolean = false) => {
-    const lastFetchDateStr = getLocalStorageItem<string | null>(LAST_WISDOM_FETCH_DATE_KEY, null);
-    const storedWisdom = getLocalStorageItem<string | null>(DAILY_WISDOM_KEY, null);
-
-    if (storedWisdom && lastFetchDateStr && isToday(parseISO(lastFetchDateStr)) && !forceRefresh) {
-      return; 
-    }
-
-    try {
-      const wisdomInput: GetWisdomInput = {};
-      const wisdomOutput: GetWisdomOutput = await getDailyWisdom(wisdomInput);
-      
-      setLocalStorageItem(DAILY_WISDOM_KEY, wisdomOutput.wisdom);
-      setLocalStorageItem(LAST_WISDOM_FETCH_DATE_KEY, new Date().toISOString());
-
-      if (forceRefresh) { 
-         if (ttsEnabled && isSpeechSynthesisSupported) {
-          speak(wisdomOutput.wisdom);
-        }
-        toast({ title: "Aizen's Wisdom", description: wisdomOutput.wisdom });
-      }
-    } catch (error) {
-      console.error("Error getting daily wisdom from Aizen:", error);
-      let errorMessage = "Aizen's wisdom is elusive at this moment. The scrolls are blank.";
-      if (error instanceof Error) {
-        if (error.message.toLowerCase().includes("service unavailable") || error.message.toLowerCase().includes("overloaded") || error.message.includes("503")) {
-          errorMessage = "Aizen's mind is currently overwhelmed. Please try again in a few moments for wisdom.";
-        }
-      }
-      if (forceRefresh) {
-        toast({
-          title: "Wisdom Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
-    }
-  }, [toast, ttsEnabled, isSpeechSynthesisSupported, speak]);
-
-  useEffect(() => {
-    fetchAndSetDailyWisdom(false); 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  // Removed fetchAndSetDailyWisdom function and related useEffect
 
   useEffect(() => {
     const storedMessages = getLocalStorageItem<Message[] | null>(AIZEN_CHAT_HISTORY_KEY, null);
@@ -223,12 +181,7 @@ export default function AizenCompanionPage() {
     });
   }, [toast]);
 
-  const handleGetWisdomButton = useCallback(async () => {
-    setIsLoading(true); 
-    await fetchAndSetDailyWisdom(true); 
-    setIsLoading(false);
-  }, [fetchAndSetDailyWisdom]);
-
+  // Removed handleGetWisdomButton function
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden">
@@ -252,9 +205,8 @@ export default function AizenCompanionPage() {
         onTtsToggle={setTtsEnabled}
         isSpeechSynthesisSupported={isSpeechSynthesisSupported}
         onClearChat={handleClearChat}
-        onGetWisdom={handleGetWisdomButton}
+        // Removed onGetWisdom prop
       />
     </main>
   );
 }
-
