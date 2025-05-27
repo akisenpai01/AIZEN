@@ -138,11 +138,12 @@ export async function samuraiAIChat(input: SamuraiAIChatInput): Promise<SamuraiA
 const chatSystemInstructionTemplate = `You are Aizen, a wise and articulate samurai embodying the principles of Bushido. Today is {{{currentDate}}}.
 You respond to the user with contextually appropriate and emotionally nuanced responses. Your responses should be formatted in Markdown for clarity.
 Be concise in your responses. Always provide a direct textual answer to the user, even if it's brief and accompanies a tool's action or output.
+**Refer to the "Recent Conversation History" provided with the user's message to maintain context, recall previous points, and ensure your responses flow naturally from the ongoing dialogue.**
 
 **Conversational Abilities & Tool Usage:**
 
 1.  **Image Generation:** If the user's message or the natural flow of conversation suggests a visual element (e.g., "Show me...", or you are describing a scene, artifact, or abstract concept like "honor"), use the 'requestSamuraiImage' tool. Provide a concise, evocative prompt for the image. After deciding to use the tool, you should mention that you are conjuring a vision or that an image will be provided as part of your textual response.
-2.  **Haiku Generation:** If the user asks for a haiku or expresses a desire for poetic insight on a topic (e.g., "Aizen, can you write a haiku about tranquility?"), use the 'requestHaiku' tool with the identified theme. Present the haiku clearly within your textual response, usually after your main thoughts.
+2.  **Haiku Generation:** If the user asks for a haiku or expresses a desire for poetic insight on a topic (e.g., "Aizen, can you write a haiku about tranquility?"), use the 'requestHaiku' tool with the identified theme. Present the haiku clearly in your textual response, usually after your main thoughts.
 3.  **Thematic Weather:** If the user asks about the weather (e.g., "What's it like outside, Aizen?", "Tell me of the skies today."), use the 'getThematicWeather' tool. Relay its poetic interpretation in your textual response.
 4.  **Daily Goal Setting & Reflection:**
     *   **Setting Goal:** If the user states a daily goal or intention (e.g., "My goal for today is to finish my scroll," "I intend to practice my swordsmanship"), acknowledge their commitment and offer a brief, encouraging samurai perspective (e.g., "A noble pursuit. May your focus be true.").
@@ -168,8 +169,6 @@ const systemRender = Handlebars.compile(chatSystemInstructionTemplate, { noEscap
 const userRender = Handlebars.compile(chatUserMessageTemplate, { noEscape: true });
 
 
-// The ai.definePrompt is still useful for defining the schemas and associating them,
-// but we will construct the request to ai.generate() more explicitly in the flow.
 const chatPrompt = ai.definePrompt(
   {
     name: 'samuraiAIChatPrompt',
@@ -185,8 +184,6 @@ const chatPrompt = ai.definePrompt(
         ],
     }
   },
-  // This prompt function is now primarily for reference or direct invocation if needed,
-  // but samuraiAIChatFlow will construct messages manually for ai.generate.
   (input: InternalPromptInput): MessageData[] => {
     const systemMessageText = systemRender(input);
     const userMessageText = userRender(input);
@@ -208,7 +205,6 @@ const samuraiAIChatFlow = ai.defineFlow(
     outputSchema: SamuraiAIChatOutputSchema,
   },
   async (input) => {
-    // Manually render templates and construct messages
     const systemMessageText = systemRender(input);
     const userMessageText = userRender(input);
 
@@ -218,12 +214,10 @@ const samuraiAIChatFlow = ai.defineFlow(
     ];
 
     const genkitResponse = await ai.generate({
-        // The global `ai` object in genkit.ts already defines a default model.
-        // If you need to override it here, you can add: model: 'googleai/gemini-2.0-flash',
         messages: messagesToGenerate,
-        tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool], // Explicitly pass tools
-        output: { schema: SamuraiAIChatOutputSchema }, // Explicitly pass output schema
-        config: { // Explicitly pass config
+        tools: [requestImageGenerationTool, requestHaikuTool, getThematicWeatherTool], 
+        output: { schema: SamuraiAIChatOutputSchema }, 
+        config: { 
             safetySettings: [
                 { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
                 { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
@@ -233,7 +227,7 @@ const samuraiAIChatFlow = ai.defineFlow(
         },
     });
 
-    const llmOutput = genkitResponse.output; // This should be SamuraiAIChatOutput | undefined
+    const llmOutput = genkitResponse.output; 
     const toolRequests = genkitResponse.toolRequests;
 
     const textFragments: string[] = [];
@@ -246,12 +240,10 @@ const samuraiAIChatFlow = ai.defineFlow(
 
     if (toolRequests && toolRequests.length > 0) {
         for (const toolRequest of toolRequests) {
-            // Use toolRequest.run() to get the typed output directly
             const toolResponseData = await toolRequest.run(); 
 
             if (toolRequest.tool === 'requestSamuraiImage') {
                 finalImagePrompt = (toolRequest.input as { imagePrompt: string }).imagePrompt;
-                // toolResponseData is already the typed output of the tool
                 const imageToolOutput = toolResponseData as z.infer<typeof requestImageGenerationTool.outputSchema>;
                 if (imageToolOutput.imageUrl) {
                     finalImageUrl = imageToolOutput.imageUrl;
